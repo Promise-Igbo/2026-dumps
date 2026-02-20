@@ -1,0 +1,94 @@
+## https://github.com/Promise-Igbo/actions-importer-labs.git
+# Create a new codespace
+# Verify github importer
+gh actions-importer version
+
+# if not, install
+gh extension install github/gh-actions-importer
+gh actions-importer update
+# for GitHub Actions Importer to communicate with your current CI/CD server and GitHub
+gh actions-importer configure
+<!-- ? Enter value for 'GITHUB_ACCESS_TOKEN' (leave empty to skip):
+... -->
+## if you need to use a custom Docker registry, you can configure GitHub Actions Importer to use a custom Docker registry by setting the CONTAINER_REGISTRY environment variable in your .env.local file.
+# .env.local
+CONTAINER_REGISTRY=my-custom-registry.com
+
+## Bootstrap your Azure DevOps organization
+# Navigate to your existing organization, click User settings, Click Personal access tokens, + New Token
+# Click on show all scopes at the bottom
+# Agent pool- read, Build- Read & execute, Code- Read & write, Project &Team- Read, write, & manage
+# Release: Read, Service Connection: Read, Task group: Read, Variable group: Read
+# Click Create and copy the API key
+27vVkwSphjjBltym0FGh5JWTySGKFvGAaoMKMKhQPLre1T4yi4BLJQQJ99CAACAAAAA2trWgAAASAZDO1DhO
+
+# Run this script from the codespace terminal and replace values accordingly
+./azure_devops/bootstrap/setup --organization :organization --project :project --access-token :access-token
+./azure_devops/bootstrap/setup --organization Abel0643 --project SeminarApp --access-token 27vVkwSphjjBltym0FGh5JWTySGKFvGAaoMKMKhQPLre1T4yi4BLJQQJ99CAACAAAAA2trWgAAASAZDO1DhO
+
+# Note, the user is not an Organization Owner or a Project Collection Administrator
+# Then commit
+# Create PAT (Token (classic)) on GitHub
+# Select the following scope: workflow and generate token
+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
+
+# Select the TERMINAL tab from within the codespace terminal and run.
+gh actions-importer configure
+# Use the down arrow key to highlight Azure DevOps, press the spacebar to select, and then press enter to continue.
+# At the GitHub PAT prompt, enter the GitHub PAT generated and press enter.
+# At the GitHub URL prompt, press enter to accept the default value.
+# At the Azure DevOps token prompt, enter the access token and press enter.
+# At the Azure DevOps URL prompt, press enter to accept the default value.
+# At the prompt, enter your Azure DevOps organization name.
+# At the prompt, enter your Azure DevOps project name.
+
+# Verify your environment
+gh actions-importer update
+
+# Perform an audit of an Azure DevOps project
+# On the codespace terminal, run
+gh actions-importer audit azure-devops --output-dir tmp/audit
+# if there is a usage .csv, inspect it to see all actions, secrets, and runners that are used by each successfully converted pipeline
+
+# Forecast potential build runner usage
+# On the codespace terminal, run
+gh actions-importer forecast azure-devops --output-dir tmp/forecast
+# completed job data will be located within the tmp/forecast folder.
+# "No jobs found" because no jobs have been executed in your bootstrapped project.
+# gh actions-importer azure-devops forecast --help command to perform a forecast using json files that are already present on the filesystem.
+
+# The command will list all the files written to disk when the command succeeds.
+gh actions-importer forecast azure-devops --output-dir tmp/forecast --source-file-path azure_devops/bootstrap/jobs.json
+
+# Perform a dry-run migration of an Azure DevOps pipeline
+# # On the codespace terminal, run
+gh actions-importer dry-run azure-devops pipeline --pipeline-id :pipeline_id --output-dir tmp/dry-run
+# This is where the pipeline id is gotten from: https://dev.azure.com/Abel0643/SeminarApp/_build/results?buildId=4&view=results. The pipeline id is 4
+# The command will list all the files written to disk when the command succeeds.
+gh actions-importer dry-run azure-devops pipeline --pipeline-id 4 --output-dir tmp/dry-run
+
+# Using custom transformers to customize GitHub Actions Importer's behavior
+# Custom transformers use a DSL built on top of Ruby and should be defined in a file with the .rb file extension.
+# create this file by running the following command in your codespace terminal
+touch transformers.rb && code transformers.rb
+
+# Add this to the file
+<!-- transform "DotNetCoreCLI@2" do |item|
+  puts "This is the item: #{item}"
+end -->
+
+gh actions-importer dry-run azure-devops pipeline --pipeline-id 4 --output-dir tmp/dry-run --custom-transformers transformers.rb
+
+# Custom transformers for environment variables
+# add the following code at the top of the transformers.rb file.
+<!-- env "BUILDCONFIGURATION", "Debug" -->
+
+gh actions-importer dry-run azure-devops pipeline --pipeline-id 4 --output-dir tmp/dry-run --custom-transformers transformers.rb
+
+# Perform a production migration of an Azure DevOps pipeline
+# Run the following migrate command in the codespace terminal
+<!-- gh actions-importer migrate azure-devops pipeline --pipeline-id :pipeline_id --target-url https://github.com/:owner/:repo --output-dir tmp/migrate -->
+gh actions-importer migrate azure-devops pipeline --pipeline-id 4 --target-url https://github.com/Promise-Igbo/Aimportertest.git --output-dir tmp/migrate
+
+# The pipeline will be migrated to github, there would be a PR
+# Note: I had to remove/rename the main branch because it was not working with it.

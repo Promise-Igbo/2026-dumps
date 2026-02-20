@@ -1,0 +1,42 @@
+## Run chatbot in App Service with a Phi-4 sidecar extension (ASP.NET Core)
+# Using this repo https://github.com/Azure-Samples/ai-slm-in-app-service-sidecar
+# i use codespaces
+az login
+cd use_sidecar_extension/dotnetapp
+# startup command for deploying ASP.NET Core applications to Azure App Service.
+az webapp up --sku P3MV3 --os-type linux
+
+## Add the Phi-4 sidecar extension
+# On the App service, go to Deployment Center,
+# On the containers tab add Sidecar extension
+# In the sidecar extension options, select AI: phi-4-q4-gguf (Experimental).
+# Provide a name for the sidecar extension and save.
+# Refresh until you see running.
+
+# This Phi-4 sidecar extension uses a chat completion API like OpenAI that can respond to chat completion response at http://localhost:11434/v1/chat/completions. 
+
+## Test the chatbot
+# Verify that the chatbot application is running and responding to user inputs.
+
+## How to use my own SLM sidecar?
+# Clone locally
+git clone https://github.com/Azure-Samples/ai-slm-in-app-service-sidecar
+cd ai-slm-in-app-service-sidecar
+
+# Change into the Phi-3 image's source directory and download the model locally using the Huggingface CLI.
+cd bring_your_own_slm/src/phi-3-sidecar
+huggingface-cli download microsoft/Phi-3-mini-4k-instruct-onnx --local-dir ./Phi-3-mini-4k-instruct-onnx
+
+# Build the Docker image
+docker build --tag phi-3 .
+
+# Upload the built image to Azure Container Registry
+# In the Deployment Center > Containers (new) tab, select Add > Custom container and configure the new container as follows:
+
+<!-- Name: phi-3
+Image source: Azure Container Registry
+Registry: your registry
+Image: the uploaded image
+Tag: the image tag you want
+Port: 8000 -->
+

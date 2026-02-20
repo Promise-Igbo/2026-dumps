@@ -1,0 +1,74 @@
+## Prerequisites Check
+# Azure CLI
+# Java 17 or 21 (Microsoft OpenJDK)
+# Maven 3.8+
+# Docker Desktop
+# Visual Studio Code with:
+# Java Extension Pack
+# GitHub Copilot App Modernization Extension Pack
+# kubectl
+# Windows Terminal with Bash (WSL)
+# Git
+
+## Register Azure Resource Providers
+az provider register --namespace Microsoft.Quota
+az provider register --namespace Microsoft.OperationsManagement
+az provider register --namespace Microsoft.PolicyInsights
+az provider register --namespace Microsoft.Compute
+az provider register --namespace Microsoft.ContainerService
+az provider register --namespace Microsoft.Insights
+az provider register --namespace Microsoft.DBforPostgreSQL
+az provider register --namespace Microsoft.ContainerRegistry
+az provider register --namespace Microsoft.ServiceLinker
+az provider register --namespace Microsoft.KubernetesConfiguration
+
+# Install Github copilot app modernization on your vscode.
+
+# sign in to uze azure cli
+az login
+
+# Install the Service Connector
+az extension add --name serviceconnector-passwordless --upgrade
+
+# Create the sevice-connector for postgres-flexible
+nohup bash -c 'az aks connection create postgres-flexible --connection pg --source-id @lab.CloudResourceTemplate(LAB502).Outputs[aksClusterId] --target-id @lab.CloudResourceTemplate(LAB502).Outputs[postgresDatabaseId] --workload-identity @lab.CloudResourceTemplate(LAB502).Outputs[userAssignedIdentityId] --client-type none --kube-namespace default | tee ~/spring-petclinic/k8s/sc.json' > ~/spring-petclinic/k8s/sc.log 2>&1 &
+# This script will log its output into the ~/spring-petclinic/k8s/sc.log file
+
+## Configure Azure RBAC Authentication for kubectl
+# add Admin to your user
+az role assignment create --assignee @lab.CloudPortalCredential(User1).Username --role "Azure Kubernetes Service RBAC Cluster Admin" --scope  @lab.CloudResourceTemplate(LAB502).Outputs[aksClusterId]
+
+# Get AKS credentials (this downloads the kubeconfig)
+az aks get-credentials --resource-group  @lab.CloudResourceGroup(myResourceGroup).Name --name @lab.CloudResourceTemplate(LAB502).Outputs[aksClusterName]
+
+# Configure kubectl to use Azure RBAC authentication
+kubelogin convert-kubeconfig --login azurecli
+
+# Test AKS access
+kubectl get nodes
+
+# The kubelogin convert-kubeconfig --login azurecli command configures kubectl to use Entra (Azure AD) authentication with the Azure RBAC roles assigned to your user account. This is required for AKS Automatic clusters with Azure RBAC enabled.
+
+## Authenticate GitHub Copilot
+# In Microsoft Edge, open https://github.com/enterprises/skillable-events/sso
+# Click on Continue
+# Log in with the credentials listed in the Resources tab
+
+## Sign In to VS Code with GitHub
+# run the following command to launch a new VS Code instance into the spring-petclinic source directory
+cd ~/spring-petclinic
+code .
+
+# Click the account icon (bottom right) → Sign in to use Copilot.
+# Select Continue with GitHub
+# Authorize VS Code to access your GitHub account.
+# Click Connect, then Authorize Visual-Studio-Code.
+# When prompted, choose to always allow vscode.dev to open links.
+# Back in VS Code, open the GitHub Copilot Chat window and switch the model to Claude Sonnet 4.5.
+# In the new terminal, run the petclinic
+mvn clean compile && mvn spring-boot:run \
+-Dspring-boot.run.arguments="--spring.messages.basename=messages/messages --spring.datasource.url=jdbc:postgresql://localhost/petclinic --spring.sql.init.mode=always --spring.sql.init.schema-locations=classpath:db/postgres/schema.sql --spring.sql.init.data-locations=classpath:db/postgres/data.sql --spring.jpa.hibernate.ddl-auto=none"
+
+# Open your browser and go to http://localhost:8080 to confirm the PetClinic application is running and ctrl + c to stop
+
+### Application Modernization

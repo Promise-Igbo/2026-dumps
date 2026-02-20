@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: my-aks-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<YOUR_USER>/<YOUR_REPO>.git # Replace with your Git repo URL
+    targetRevision: HEAD
+    path: manifests # Path to your Kubernetes manifests within the repo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default # Target namespace in your AKS cluster
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
