@@ -1,2 +1,51 @@
 ## KubeVirt provides a unified development platform where developers can build, modify, and deploy applications residing in both Containers and Virtual Machines in a common environment.
 
+# query GitHub's API to get the latest available release
+export KUBEVIRT_VERSION=$(curl -s https://api.github.com/repos/kubevirt/kubevirt/releases/latest | jq -r .tag_name)
+echo $KUBEVIRT_VERSION
+
+# deploy the KubeVirt Operator
+kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml
+
+# deploy KubeVirt by creating a Custom Resource that will trigger the 'operator' reaction and perform the deployment
+deploy KubeVirt by creating a Custom Resource that will trigger the 'operator' reaction and perform the deployment
+
+# configure KubeVirt to use software emulation for virtualization.
+kubectl -n kubevirt patch kubevirt kubevirt --type=merge --patch '{"spec":{"configuration":{"developerConfiguration":{"useEmulation":true}}}}'
+
+# Install Virtctl
+# virtctl is a client utility that helps interact with VM's (start/stop/console)
+wget -O virtctl https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-amd64
+chmod +x virtctl
+
+# check the deployment
+kubectl get pods -n kubevirt
+
+#  the best way to determine whether the operator is fully installed is to check the operator's Custom Resource itself
+kubectl -n kubevirt get kubevirt
+
+# Deploy a Virtual Machine eg
+kubectl apply -f https://kubevirt.io/labs/manifests/vm.yaml
+#  Now we have a Virtual Machine as a Kubernetes resource.
+
+kubectl get vms
+kubectl get vms -o yaml testvm | grep -E 'runStrategy:.*|$'
+# Notice from the output that the VM is not running yet
+
+# To start a VM, use virtctl
+./virtctl start testvm
+
+# check the VM status
+kubectl get vms
+
+#  inspect its status
+kubectl get vmis
+
+# To access a VM console
+./virtctl console testvm
+
+# Shutdown and cleanup
+./virtctl stop testvm
+
+# To delete the VM
+kubectl delete vms testvm
