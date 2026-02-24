@@ -1,36 +1,108 @@
 ## As a user I want to view real time weather data for my city so that I can plan my day.
 
-## Spec-driven development
-# Spec Kit generates requirements, a plan, and tasks to guide a coding agent through an iterative, structured development process.
-# i use this repo https://github.com/owainow/speckit-to-issue/tree/main, as a tool that converts Spec Kit outputs into GitHub issues.
-# Idea → Spec → Tasks → GitHub Issues → Implementation
+## Spec-driven development workflow
+Spec Kit generates requirements, a plan, and tasks to guide a coding agent through an iterative, structured development process.
 
-# 1. Clone and install the tool
+**Workflow:** Idea → Spec → Tasks.md → GitHub Issues → Implementation
+
+**Tool:** [speckit-to-issue](https://github.com/owainow/speckit-to-issue) (Python CLI) converts Spec Kit `tasks.md` files into GitHub issues via the GitHub CLI.
+
+---
+
+## Setup (One-time)
+
+```bash
+# 1. Clone the tool
 git clone https://github.com/owainow/speckit-to-issue.git
 cd speckit-to-issue
 
-# Create a virtual environment
+# 2. Create virtual environment
 python -m venv venv
 venv\Scripts\activate
 
-# Quick helper: create new spec from a one-line prompt
-# From the repository root run (Windows):
-#
-# promptkit.specify.bat "Add 5-day forecast feature"
-#
-# This creates `specs/<slug>.md` which you can convert into GitHub issues with:
-#
-# npm run generate-issues -- specs/<slug>.md
+# 3. Install package
+pip install -e .
 
-# 2. Create or obtain a Spec Kit spec
-/specs/weather-app.md
+# 4. Ensure GitHub CLI is authenticated
+gh auth login
+```
 
-# 3. prompt
-/promptkit.specify "Build a weather app using OpenWeather API"
+---
 
-# 4. Convert spec into GitHub issues
-npm run generate-issues -- path/to/spec.md
+## Workflow steps
 
-# 5. Add new features using new specs
-/promptkit.specify "Add 5-day forecast feature" 
+### Step 1: Create or obtain a spec
+- **Initial weather app spec:** `specs/weather-app.md`
+  - Describes OpenWeather API integration, goals, acceptance criteria
+  - Reference: https://openweathermap.org/api
+
+### Step 2: Generate a tasks.md file from a prompt
+Use the helper script to create a new feature spec, then convert it to tasks:
+
+```bash
+# Quick way: run from repo root (Windows)
+promptkit.specify.bat "Add 5-day forecast feature"
+
+# Or manually call Python
+python scripts/promptkit_specify.py "Add 5-day forecast feature"
+```
+
+This creates `specs/<slug>.md` with a template. **Note:** You must manually convert the spec to a `tasks.md` file with structured tasks (see `specs/add-5-day-forecast/tasks.md` for format).
+
+### Step 3: Convert tasks.md to GitHub issues
+The `speckit-to-issue` tool expects a **tasks.md** file (not .spec), formatted with:
+- Task IDs (T001, T002, etc.)
+- Priority, Estimate, Dependencies
+- Acceptance Criteria (with checkboxes)
+
+```bash
+# Preview issues (dry-run)
+speckit-to-issue create specs/add-5-day-forecast/tasks.md --dry-run
+
+# Create actual GitHub issues (requires GitHub CLI auth + repo permissions)
+speckit-to-issue create specs/add-5-day-forecast/tasks.md \
+  --repo owner/repo \
+  --assign-copilot
+```
+
+**Flags:**
+- `--dry-run` / `-n`: Preview without creating
+- `--assign-copilot` / `-c`: Format for Copilot Coding Agent
+- `--repo` / `-r`: Target repository (owner/repo)
+- `--milestone` / `-m`: Assign to milestone
+- `--verbose` / `-v`: Show detailed output
+
+---
+
+## What was done (2026-02-24)
+
+✅ **Created initial weather app spec:** `specs/weather-app.md`
+   - OpenWeather API integration details
+   - Goals: current weather + 5-day forecast, unit toggle, caching
+   - Acceptance criteria and task scaffolding
+
+✅ **Created helper tools:**
+   - `scripts/promptkit_specify.py`: Generate spec markdown from a one-line prompt
+   - `promptkit.specify.bat`: Windows wrapper for easy invocation
+
+✅ **Created feature tasks:** `specs/add-5-day-forecast/tasks.md`
+   - T001–T004: Core implementation tasks (API, caching, UI, integration)
+   - T005 (optional): Unit tests
+   - Properly formatted with priorities, estimates, dependencies, acceptance criteria
+
+✅ **Generated GitHub issues**
+   - Ran `speckit-to-issue create specs/add-5-day-forecast/tasks.md --assign-copilot`
+   - Created 1 feature issue with 4 tasks in target repo
+
+---
+
+## Next steps
+
+1. Check GitHub issues in the target repository
+2. Implement tasks using Copilot Coding Agent or manually
+3. Create new features by running:
+   ```bash
+   promptkit.specify.bat "Another feature here"
+   # Then create tasks.md file, then run speckit-to-issue create ...
+   ``` 
 
