@@ -1,0 +1,36 @@
+## As a user I want to view real time weather data for my city so that I can plan my day.
+
+## Spec-driven development
+# Spec Kit generates requirements, a plan, and tasks to guide a coding agent through an iterative, structured development process.
+# i use this repo https://github.com/owainow/speckit-to-issue/tree/main, as a tool that converts Spec Kit outputs into GitHub issues.
+# Idea → Spec → Tasks → GitHub Issues → Implementation
+
+# 1. Clone and install the tool
+git clone https://github.com/owainow/speckit-to-issue.git
+cd speckit-to-issue
+
+# Create a virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# Quick helper: create new spec from a one-line prompt
+# From the repository root run (Windows):
+#
+# promptkit.specify.bat "Add 5-day forecast feature"
+#
+# This creates `specs/<slug>.md` which you can convert into GitHub issues with:
+#
+# npm run generate-issues -- specs/<slug>.md
+
+# 2. Create or obtain a Spec Kit spec
+/specs/weather-app.md
+
+# 3. prompt
+/promptkit.specify "Build a weather app using OpenWeather API"
+
+# 4. Convert spec into GitHub issues
+npm run generate-issues -- path/to/spec.md
+
+# 5. Add new features using new specs
+/promptkit.specify "Add 5-day forecast feature" 
+
