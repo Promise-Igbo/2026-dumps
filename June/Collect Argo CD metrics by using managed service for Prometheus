@@ -29,3 +29,40 @@ echo $ARGOCD_PASSWORD
 
 # Create an Argo CD Application
 kubectl apply -f app.yaml
+
+
+# OR
+## Create GitOps (ArgoCD) extension (simple installation)
+az aks create --resource-group deleterg --name delaks --node-count 2 --generate-ssh-keys
+az provider register --namespace Microsoft.KubernetesConfiguration
+az k8s-extension create --resource-group deleterg --cluster-name delaks --cluster-type managedClusters --name argocd --extension-type Microsoft.ArgoCD --release-train preview --config "redis-ha.enabled=false" --config "configs.params.application\.namespaces=namespace1,namespace2"
+az aks get-credentials --resource-group deleterg --name delaks
+
+## Access the ArgoCD UI
+## ArgoCD expects TLS unless you specify otherwise, so we will expose the service with a LoadBalancer and access it over HTTP (Patch Service to Disable TLS)
+kubectl -n argocd expose service argocd-server --type LoadBalancer --name argocd-server-lb --port 80 --target-port 8080
+kubectl get svc -n argocd
+
+## Username: admin
+## Password for linux/macOS
+kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d
+## Password for Windows (PowerShell)
+kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | %{[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_))}
+## bgPlccWw-s1Q9vPe
+
+## Deploy ArgoCD application
+kubectl apply -f app1.yaml
+
+kubectl get app -n argocd
+
+## Collect Argo CD metrics by using managed service for Prometheus
+## Deploy service monitors
+## configure the managed service for Prometheus add-on to scrape Prometheus metrics from the Argo CD workload.
+kubectl apply -f argocd-metrics.yaml
+
+## To Update extension configuration when needed (so the settings don't get overwritten)
+az k8s-extension update --resource-group deleterg --cluster-name delaks --cluster-type managedClusters --name Microsoft.ArgoCD --config "configs.cm.url='https://<public-ip-for-argocd-ui>/auth/callback'"
+
+## Delete the extension
+az k8s-extension delete -g deleterg -c delaks -n argocd -t managedClusters --yes
+

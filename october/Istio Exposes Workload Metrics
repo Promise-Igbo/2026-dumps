@@ -1,0 +1,100 @@
+# deploy an application to the mesh, review the Prometheus scrape endpoint, and study the metrics that are exposed for collection.
+
+# Ensure that Istio is deployed with the demo profile
+istioctl install --set profile=demo
+# We are using demo profile because it is a test environment that doesn't see much traffic
+
+# ensure that the default namespace is labeled for sidecar injection
+kubectl label ns default istio-injection=enabled
+
+# Verify that the label has been applied with the following command
+kubectl get ns -L istio-injection
+
+# Navigate to the base directory of your Istio distribution
+cd ~/istio-1.21.0
+
+# Deploy the BookInfo sample application that is bundled with the Istio distribution
+kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
+
+# Finally, deploy the bundled sleep sample service
+kubectl apply -f samples/sleep/sleep.yaml
+
+kubectl get pod
+
+# With the BookInfo application running, make a token HTTP request against its productpage service
+# First, identify the name of the pod corresponding to the productpage deployment
+PRODUCTPAGE_POD=$(kubectl get pod -l app=productpage -o jsonpath='{.items[0].metadata.name}')
+
+# use curl to call the productpage service's main page from the running sleep pod
+SLEEP_POD=$(kubectl get pod -l app=sleep -o jsonpath='{.items[0].metadata.name}')
+
+kubectl exec $SLEEP_POD -it -- curl productpage:9080/productpage | head
+# The output should show the start of the HTML response from the productpage service
+
+kubectl get pod $PRODUCTPAGE_POD -o jsonpath='{.spec.containers[*].name}'
+
+# query the scrape endpoint
+kubectl exec $PRODUCTPAGE_POD -c istio-proxy curl localhost:15090/stats/prometheus
+
+# or Use istioctl dashboard command to open the Envoy dashboard web page
+istioctl dashboard envoy deploy/productpage-v1.default
+# In the dashboard, click on the hyperlink in the first column titled stats/prometheus
+
+# To collect metrics in Prometheus
+# deploy Prometheus to the istio-system namespace
+kubectl apply -f samples/addons/prometheus.yaml
+
+# send another request to the productpage service
+SLEEP_POD=$(kubectl get pod -l app=sleep -ojsonpath='{.items[0].metadata.name}')
+
+kubectl exec $SLEEP_POD -it -- curl productpage:9080/productpage | head
+
+istioctl dashboard prometheus
+# Enter the metric name istio_requests_total into the search field and press the button labeled Execute.
+
+# Grafana Dashboards for Istio
+kubectl apply -f samples/addons/grafana.yaml
+
+istioctl dashboard grafana
+# Here, there a 6 dashboards: Mesh, Service, Workload, Control plane, Performance, Wasm Extension.
+
+# Capture the name of the sleep pod
+SLEEP_POD=$(kubectl get pod -l app=sleep -ojsonpath='{.items[0].metadata.name}')
+
+# Run the following simple script to make repeated calls to the productpage endpoint:
+while true; do kubectl exec $SLEEP_POD -it -- curl productpage:9080/productpage; sleep 0.3; done
+
+# To Deploy Jaeger and Review Some Traces
+kubectl apply -f samples/addons/jaeger.yaml
+# The resulting deployment can be seen in the istio-system namespace
+
+# store the name of the sleep pod in an environment variable
+SLEEP_POD=$(kubectl get pod -l app=sleep -o jsonpath='{.items[0].metadata.name}')
+
+# send requests to the productpage service every 1-2 seconds
+while true; do kubectl exec $SLEEP_POD -it -- curl productpage:9080/productpage; sleep 1; done
+
+# To view the distributed traces, open the Jaeger dashboard:
+istioctl dashboard jaeger
+
+## Discover the Kiali Console
+# Through alerts and warnings, it can help validate that the service mesh configuration is correct and that it does not have any problems.
+# With Kiali, one can view Istio custom resources, services, workloads, or applications.
+
+# deploy Kiali to your Kubernetes cluster
+kubectl apply -f samples/addons/kiali.yaml
+
+# store the name of the sleep pod in an environment variable
+SLEEP_POD=$(kubectl get pod -l app=sleep -o jsonpath='{.items[0].metadata.name}')
+
+# send requests to the productpage service at a 1-2 second interval:
+while true; do kubectl exec $SLEEP_POD -it -- curl productpage:9080/productpage; sleep 1; done
+
+# launch the Kiali dashboard:
+istioctl dashboard kiali
+# In the UI, select the Graph option from the sidebar, and select the default namespace.
+# You can check other resource tabs on Kali aswell
+
+# To clean up the deployed resources, run:
+kubectl delete -f samples/bookinfo/platform/kube/bookinfo.yaml
+kubectl delete -f samples/sleep/sleep.yaml

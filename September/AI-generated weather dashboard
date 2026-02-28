@@ -100,6 +100,11 @@ speckit-to-issue create specs/add-5-day-forecast/tasks.md \
 
 1. Check GitHub issues in the target repository
 2. Implement tasks using Copilot Coding Agent or manually
+# install gh cli
+# view issue
+gh issue view 1 --repo Promise-Igbo/speckit-to-issue --json body --jq '.body'
+gh issue view 1 --repo Promise-Igbo/speckit-to-issue --json body --jq '.body' | copilot-coding-agent task
+
 3. Create new features by running:
    ```bash
    promptkit.specify.bat "Another feature here"
