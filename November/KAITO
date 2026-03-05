@@ -1,0 +1,19 @@
+## Kaito on AKS is mainly used to deploy, orchestrate, and scale AI/ML workloads in production with the resilience and integration advantages of Azure Kubernetes Service. It’s ideal for companies that need continuous AI delivery at scale.
+
+## Use Case: Deploy multiple AI models in production with automatic scaling, rolling updates, and high availability.
+## e.g: A company running real-time fraud detection models can deploy them via Kaito on AKS, scaling up during peak transaction hours.
+
+## Use Case: Automating ETL pipelines for large datasets and deploying models for predictions on demand.
+## AKS allows these pipelines to run in containerized pods, which are easy to scale and manage.
+
+## Multi-Environment Management while Testing a new NLP model version on staging before pushing to production without downtime.
+
+## Since AKS integrates seamlessly with Azure Blob Storage, Azure SQL, Azure Key Vault, and other services, Kaito workflows can ingest data from these sources and securely manage credentials and secrets.
+
+##  simplifies the process of deploying and managing open-source LLM workloads on Kubernetes. KAITO integrates with vLLM, a high-throughput inference engine designed to serve large language models efficiently. vLLM as an inference engine helps reduce memory and GPU requirements without significantly compromising accuracy.
+
+##  It includes built-in features like OpenAI-compatible APIs, prompt formatting, and streaming response support. When deployed on an AKS cluster, KAITO ensures data stays within your organization’s controlled environment, providing a secure, compliant alternative to cloud-hosted LLM APIs.
+
+## This is the KAITO github repo: https://github.com/kaito-project/kaito
+
+## Current limitations: AzureLinux and Windows OS SKU are not currently supported. AMD GPU VM sizes are not supported instanceType in a KAITO workspace. AI toolchain operator add-on is supported in public Azure regions.
