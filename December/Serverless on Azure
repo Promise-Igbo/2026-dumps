@@ -8,4 +8,4 @@ az functionapp create --resource-group func-api-rg --consumption-plan-location e
 # Deploy the code
 cd funcProject
 func azure functionapp publish func-api-demo
-# Your API will be available at: https://<function-app-name>.azurewebsites.net/api/hello
+# Your API will be available at: https://func-api-demo.azurewebsites.net/api/hello
