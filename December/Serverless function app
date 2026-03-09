@@ -1,0 +1,89 @@
+## 1. Build Serverless HTTP API on Azure with Azure Functions and FastAPI
+## build a simple Hello World HTTP API using an HTTP trigger in Azure Functions.
+# i installed function core tools using chocolatey
+func init funcProject –python
+#  Create an HTTP trigger function
+cd funcProject
+func new --name MyHttpFunction --template "HTTP trigger"
+# The local.settings.json file stores settings used only for local development and not deployed to Azure
+
+# Run the Azure Function locally
+# Start the Function Runtime (switch to the python runtime that supports func)
+py -3.13 -m venv .venv
+.venv\Scripts\activate
+func start
+# Browse the output and Test the HTTP Endpoint
+
+# Integrating FASTAPI
+# FastAPI is a modern, high-performance web framework for building APIs in Python, It helps developers structure endpoints, validate requests, and generate API documentation more easily.
+# Install FastAPI and Uvicorn
+pip install fastapi uvicorn
+# Create the FastAPI app (fastapi_app.py)
+# Test the FastAPI app locally
+uvicorn fastapi_app:app
+# Open the browser at: http://127.0.0.1:8000/api/hello
+
+# Forward Azure Function Requests to FastAPI
+# Update the function_app.py:
+<!-- import azure.functions as func
+from fastapi_app import app as fastapi_app
+
+function_app = func.FunctionApp()
+
+# Create ASGI middleware to connect Azure Function -> FastAPI
+asgi_middleware = func.AsgiMiddleware(fastapi_app)
+
+@function_app.route(route="{*route}", auth_level=func.AuthLevel.ANONYMOUS)
+async def fastapi_handler(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
+    """Proxy all HTTP traffic to FastAPI."""
+    return await asgi_middleware.handle_async(req, context) -->
+
+# Test the Integrated Function Locally
+func start
+# Azure Functions automatically prefixes HTTP routes with /api, which is why the endpoint includes /api/hello
+# Test at: http://localhost:7071/api/hello
+
+# To validate request data and generate interactive API documentation with minimal effort.
+# Define a Request Model
+# Add the following code to your fastapi_app.py file:
+<!-- from pydantic import BaseModel
+class HelloRequest(BaseModel):
+ name: str -->
+
+# Add a POST API Endpoint to Use the Model
+<!-- @app.post("/api/helloUser")
+def hello_user(request: HelloRequest) -> dict:
+    return {"message": f"Hello, {request.name}!"} -->
+
+# Test Validation Locally
+func start
+# Send a POST request to: http://localhost:7071/api/helloUser
+# Use Powershell:
+<!-- Invoke-RestMethod `
+-Method POST `
+-Uri http://localhost:7071/api/helloUser `
+-ContentType "application/json" `
+-Body '{"name":"Azure"}' -->
+
+# Use Curl:
+curl -X POST http://localhost:7071/api/helloUser \
+-H "Content-Type: application/json" \
+-d "{\"name\":\"Azure\"}"
+
+# You can also use Postman or any other method to send a POST request
+
+#  Explore the Auto-Generated API Documentation
+# Add the following code to function_app.py to make the Swagger UI accessible when running FastAPI with Azure Functions.
+<!-- from fastapi.openapi.docs import get_swagger_ui_html
+
+@fastapi_app.get("/api/docs", include_in_schema=False)
+async def custom_swagger_ui_html() -> HTMLResponse:
+    """Custom Swagger UI endpoint that works with Azure Functions."""
+    return get_swagger_ui_html(
+        openapi_url="",  # empty because spec is passed directly
+        title=f"{fastapi_app.title} - Swagger UI",
+        swagger_ui_parameters={"spec": fastapi_app.openapi()},
+    ) -->
+
+func start
+# Open the following URL in your browser: http://localhost:7071/api/docs
