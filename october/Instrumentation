@@ -1,5 +1,0 @@
-## Instrumentation refers to the process of adding code or using tools to collect telemetry data (such as logs, metrics, and traces) from an application.
-## Automatic Instrumentation (or zero-code): Instrumentation is provided by OpenTelemetry agents or plugins not by modifying the code.
-## Instrumentation Libraries (potentially code-based): require minimal code changes using libraries to instrument specific parts of an application where automatic methods may not reach or to extend it with custom logic.
-## Manual Instrumentation (fully code-based): directly adding OpenTelemetry API calls in the source code.
-

@@ -1,0 +1,222 @@
+## Instrumentation refers to the process of adding code or using tools to collect telemetry data (such as logs, metrics, and traces) from an application.
+## Automatic Instrumentation (or zero-code): Instrumentation is provided by OpenTelemetry agents or plugins not by modifying the code.
+## Instrumentation Libraries (potentially code-based): require minimal code changes using libraries to instrument specific parts of an application where automatic methods may not reach or to extend it with custom logic.
+## Manual Instrumentation (fully code-based): directly adding OpenTelemetry API calls in the source code.
+
+## Zero-code Instrumentation for Java and Python
+# Use repo: https://github.com/lftraining/LFS148-code
+## Make sure the Docker Compose environment from OpenTelemetry in Action is stopped to avoid port conflicts because its same repo used for OpenTelemetry in Action
+## In the repo we have several directories
+# Initial directory: automatic-instrumentation/initial
+# Solution directory: automatic-instrumentation/solution
+# Java Source code: automatic-instrumentation/initial/todobackend-springboot
+# Python Source code: automatic-instrumentation/initial/todoui-flask
+
+## JAVA
+cd $EXERCISES
+cd automatic-instrumentation/initial/todobackend-springboot
+
+# Build the project using maven using the following command
+mvn clean package
+java -jar target/todobackend-0.0.1-SNAPSHOT.jar
+# After the output
+# Stop it again using Ctrl+C
+# At this point, It’s just a standalone Spring Boot application.
+
+# Run the Project with OpenTelemetry
+wget https:‌//github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.8.0/opentelemetry-javaagent.jar
+java -javaagent:./opentelemetry-javaagent.jar -jar target/todobackend-0.0.1-SNAPSHOT.jar
+# It will generate n output,  but in the output you will see a lot of errors because default configuration will make the agent look for a collector, which is currently not present in our environment.
+# Stop the application again using Ctrl+C.
+
+# Configure the OpenTelemetry Agent
+# set the following environment variables
+export OTEL_TRACES_EXPORTER=console
+export OTEL_METRICS_EXPORTER=none
+export OTEL_LOGS_EXPORTER=none
+# We are basically telling the agent to only export trace information and to not try to reach out to a collector.
+
+# run the application with the latest settings
+java -javaagent:./opentelemetry-javaagent.jar -jar target/todobackend-0.0.1-SNAPSHOT.jar
+
+# Invoke Application and Observe OpenTelemetry Behavior
+curl localhost:8080/todos/
+# The output like: []%
+# You are querying a REST Endpoint and as a return you get an empty list. So this output means that there are no items stored in your application yet.
+
+# If you switch back to the terminal of the Java application process, You can see multiple statements of the otel.javaagent, each of them is originating from a different tracer library. 
+
+# If you execute another curl call in your other shell to add a new item
+curl -X POST localhost:8080/todos/NEW
+
+# stop the application again using Ctrl+C
+
+# export the information to a visualization tool like Jaeger.
+# deploy an all-in-one option of the Jaeger application, which comes with a bundled OpenTelemetry collector
+docker run -d --name jaeger -e COLLECTOR_OTLP_ENABLED=true -p 16686:16686 -p 14268:14268 -p 4317:4317 -p 4318:4318 jaegertracing/all-in-one
+docker ps
+
+# To ensure the information will be sent to the right endpoint, reconfigure the environment variable from before
+export OTEL_TRACES_EXPORTER=otlp
+export OTEL_COLLECTOR_HOST=localhost
+
+# Run the Java application again 
+java -javaagent:./opentelemetry-javaagent.jar -jar target/todobackend-0.0.1-SNAPSHOT.jar
+
+# In your second terminal, run
+curl -X POST localhost:8080/todos/NEW
+
+# Now point your browser to http:‌//localhost:16686/
+
+# to simulate a slow or a breaking call, run
+curl -X POST localhost:8080/todos/slow
+
+## PYTHON
+cd $EXERCISES
+cd automatic-instrumentation/initial/todoui-flask
+python app.py
+
+# to make sure some OpenTelemetry packages for Python are installed, run
+pip install opentelemetry-distro opentelemetry-exporter-otlp
+# to enable the auto-instrumented invocation of Python apps, run
+opentelemetry-bootstrap --action=install
+# For the current version we are facing a bug here and temporarily need to do this step
+pip uninstall opentelemetry-instrumentation-aws-lambda
+# Confirm with y if required.
+
+# set some environment variables
+export OTEL_LOGS_EXPORTER="none"
+export OTEL_METRICS_EXPORTER="none"
+export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
+export OTEL_SERVICE_NAME=todoui-flask
+export OTEL_EXPORTER_OTLP_INSECURE=true
+
+# Run
+opentelemetry-instrument python app.py
+
+# After executing the call, switch to the Jaeger Web UI. Once you refresh the http:‌//localhost:16686/search URL, you can now see that three services and capture traces.
+
+## Code-Based Instrumentation
+# JAVA
+# Repo: https://github.com/lftraining/LFS148-code
+cd $EXERCISES
+cd automatic-instrumentation/initial/todobackend-springboot
+
+# Locate the dependencies section within the pom.xml file:
+        <dependency>
+                <groupId>io.opentelemetry.instrumentation</groupId>
+                <artifactId>opentelemetry-instrumentation-annotations</artifactId>
+                <version>2.4.0</version>
+        </dependency>
+# And save
+
+# re-run the build
+mvn clean package
+
+docker run -d --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 16686:16686 \
+  -p 14268:14268 \
+  -p 4317:4317 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one
+
+# Download the agent JAR file, if it is not there yet
+wget https:‌//github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.8.0/opentelemetry-javaagent.jar
+
+# And make sure the environment variables are set appropriately
+export OTEL_TRACES_EXPORTER=otlp
+export OTEL_METRICS_EXPORTER=none
+export OTEL_LOGS_EXPORTER=none
+
+# Now run the newly built JAR including the agent
+java -javaagent:./opentelemetry-javaagent.jar -jar target/todobackend-0.0.1-SNAPSHOT.jar
+
+# switch to a new terminal and execute
+curl -X POST localhost:8080/todos/NEW
+
+# Within the source code of the Java class TodobackendApplication.java add the following import statements to the top.
+import io.opentelemetry.instrumentation.annotations.SpanAttribute;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
+
+# Locate the someInternalMethod and place the @WithSpan annotation just above as shown in the following code snippet
+@WithSpan
+String someInternalMethod(String todo){
+# Then save
+
+# Rebuild the Java application
+mvn clean package
+
+# Run the newly built JAR file
+java -javaagent:./opentelemetry-javaagent.jar -jar target/todobackend-0.0.1-SNAPSHOT.jar
+
+# After it comes up, switch to another terminal window and generate some more load as you did before
+curl -X POST localhost:8080/todos/TEST
+curl localhost:8080/todos/
+curl -X DELETE localhost:8080/todos/TEST
+# Access the Jaeger UI again and find the latest traces.
+
+# To use the library to observe their specific span details, So stop the Java process again with Ctrl+C, modify the TodobackendApplication.java again.
+
+# Navigate to the method signature of the someInternalMethod method. This time you need to add the @SpanAttribute annotation right in front of the String todo parameter
+@WithSpan String
+someInternalMethod(@SpanAttribute String todo){
+
+# Now save, build and run it again
+mvn clean package
+java -javaagent:./opentelemetry-javaagent.jar -jar target/todobackend-0.0.1-SNAPSHOT.jar
+
+# After it comes up, generate some more load
+curl -X POST localhost:8080/todos/SMILE
+
+## Alternative Approach
+# configure environment variables you can use in the annotations library.
+OTEL_INSTRUMENTATION_METHODS_INCLUDE and OTEL_INSTRUMENTATION_OPENTELEMETRY_INSTRUMENTATION_ANNOTATIONS_EXCLUDE_METHODS
+
+# Both environment variables only correspond with the @WithSpan annotation.
+export OTEL_INSTRUMENTATION_METHODS_INCLUDE=io.novatec.todobackend.TodobackendApplication[someInternalMethod]
+
+export OTEL_INSTRUMENTATION_OPENTELEMETRY_INSTRUMENTATION_ANNOTATIONS_EXCLUDE_METHODS=io.novatec.todobackend.TodobackendApplication[someInternalMethod]
+
+## PYTHON
+cd $EXERCISES
+cd automatic-instrumentation/initial/todoui-flask
+
+# Open the app.py Python source code in your editor.
+# Locate the two import statements on top and Add the following statement right underneath to import the trace API from OpenTelemetry:
+# Import the trace API
+from opentelemetry import trace
+
+# Directly after that, add a statement to acquire a tracer:
+# Acquire a tracer
+tracer = trace.get_tracer("todo.tracer")
+
+# Locate the add function in the code and Replace it entirely with the following code block.
+if request.method == 'POST':
+    with tracer.start_as_current_span("add") as span:
+        new_todo = request.form['todo']
+        span.set_attribute("todo.value",new_todo)
+        logging.info("POST %s/todos/%s",app.config['BACKEND_URL'],new_todo)            response = requests.post(app.config['BACKEND_URL']+new_todo)
+return redirect(url_for('index'))
+
+# i.e two lines of code have been added
+# 1. with tracer.start_as_current_span("add") as span:
+# 2. span.set_attribute("todo.value",new_todo)
+
+# Execute:
+export OTEL_LOGS_EXPORTER="none"
+export OTEL_METRICS_EXPORTER="none"
+export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
+export OTEL_SERVICE_NAME=todoui-flask
+export OTEL_EXPORTER_OTLP_INSECURE=true
+# run the auto instrumented app again:
+opentelemetry-instrument python app.py
+
+# access both of the Web UIs again - the Python frontend and Jaeger. Add and remove some todos and observe the behavior in Jaeger
+
+# analyze an individual trace of todoui-flask with a POST operation, you will see an additional span in the trace.
+# This span will show up as 2nd in the list and is called todoui-flask add.
+
+# Ctrl+C and stop the docker container using docker stop jaeger.
