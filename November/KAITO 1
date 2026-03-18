@@ -1,8 +1,10 @@
+## https://moaw.dev/workshop/?src=gh%3Apauldotyu%2Fmoaw%2Flearnlive%2Fworkshops%2Fopensource-models-on-aks-with-kaito%2F&step=3#azure-vcpu-quota
+
 ## Deploy a sample intelligent application to AKS
 ## Deploy and run an open-source LLM on AKS with Kaito
 ## Connect the sample app to the open-source LLM
 
-## Repo: https://github.com/Azure-Samples/aks-store-demo
+## Repo: https://github.com/Promise-Igbo/aks-store-demo
 
 ## Deploy the AKS Store Demo app using codespaces
 # login to Azure CLI

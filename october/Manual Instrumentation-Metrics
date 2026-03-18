@@ -1,0 +1,333 @@
+## Repo: https://github.com/lftraining/LFS148-code
+cd $EXERCISES
+cd manual-instrumentation-metrics/initial
+
+# Start the echo server using
+docker compose up
+
+# In another terminal, run 
+cd $EXERCISES
+cd manual-instrumentation-metrics/initial/src
+
+# Start the Python app/webserver
+python app.py
+
+# On terminal 3, Test the Python app with the following command
+curl -XGET localhost:5000; echo
+
+# Output should be: Hello, World! It's currently Thu, 11 Jul 2024 09:49:38
+# If you get stuck, you can find the solution in the folder: exercises/manual-instrumentation-metrics/solution/src
+
+#  add the entire content to the new file metric_utils.py
+# OTel SDK
+from opentelemetry.sdk.metrics.export import (
+    ConsoleMetricExporter,
+    PeriodicExportingMetricReader,
+    MetricReader,
+)
+
+def create_metrics_pipeline(export_interval: int) -> MetricReader:
+    console_exporter = ConsoleMetricExporter()
+    reader = PeriodicExportingMetricReader(
+        exporter=console_exporter,
+        export_interval_millis=export_interval
+    )
+    return reader
+
+# extend the file metric_utils.py with the following code
+# OTel API
+from opentelemetry import metrics as metric_api
+
+# OTel SDK
+from opentelemetry.metrics import Counter, Histogram, ObservableGauge
+from opentelemetry.sdk.metrics import MeterProvider
+
+def create_meter(name: str, version: str) -> metric_api.Meter:
+    # configure provider
+    metric_reader = create_metrics_pipeline(5000)
+    provider = MeterProvider(
+        metric_readers=[metric_reader],
+    )
+
+    # obtain meter
+    metric_api.set_meter_provider(provider)
+    meter = metric_api.get_meter(name, version)
+    return meter
+
+# open app.py and import create_meter.
+app.py
+# custom
+from metric_utils import create_meter
+
+# global variables
+app = Flask(__name__
+meter = create_meter("app.py", "0.1")
+
+# In metric_utils.py add a new function called create_request_instruments. 
+def create_request_instruments(meter: metric_api.Meter) -> dict[str, metric_api.Instrument]:
+    index_counter = meter.create_counter(
+        name="index_called",
+        unit="request",
+        description="Total amount of requests to /"
+    )
+
+    instruments = {
+        "index_counter": index_counter,
+    }
+    return instruments
+
+#  import the helper function into app.py
+from metric_utils import create_meter, create_request_instruments
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    request_instruments['index_counter'].add(1)
+    # ...
+
+if __name__ == "__main__":
+    request_instruments = create_request_instruments(meter)
+    # ...
+
+# Start the web server using
+python app.py
+
+# Use the second terminal to send a request to / via
+curl -XGET localhost:5000; echo
+
+# modify the index function in app.py
+from flask import Flask, make_response, request
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    request_instruments["index_counter"].add(
+        1,
+        { "http.request.method": request.method }
+    )
+
+# Send a couple of POST and GET requests to / via the
+curl -XPOST localhost:5000; echo
+curl -XGET localhost:5000; echo
+
+## Instruments to Measure Golden Signals
+# Traffic
+# Modify the two source files to look like the ones below
+# metric_utils.py
+def create_request_instruments(meter: metrics.Meter) -> dict:
+    traffic_volume = meter.create_counter(
+        name="traffic_volume",
+        unit="request",
+        description="total volume of requests to an endpoint",
+    )
+
+    instruments = {
+        "traffic_volume": traffic_volume,
+    }
+
+    return instruments
+
+# app.py
+​@app.route("/", methods=["GET", "POST"])
+def index():
+    do_stuff()
+    current_time = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
+    return f"Hello, World! It's currently {current_time}"
+
+# create a custom function before_request_func and annotate it with Flask’s @app.before_request decorator
+# Edit the app.py code accordingly
+@app.before_request
+def before_request_func():
+    request_instruments["traffic_volume"].add(
+        1, attributes={"http.route": request.path}
+    )
+
+# Send a couple of POST and GET requests via
+curl -XGET localhost:5000; echo
+curl -XPOST localhost:5000; echo
+
+# Look to see any difference in the Output
+# the http.route attribute, the start_time_unix_nano, and the increasing value for each visit to the HTTP route.
+
+# Error Rate
+# Add error_rate to metric_utils.p
+def create_request_instruments(meter: metrics.Meter) -> dict:
+    error_rate = meter.create_counter(
+    name="error_rate",
+    unit="request",
+    description="rate of failed requests"
+    )
+
+    instruments = {
+    "traffic_volume": traffic_volume,
+    "error_rate": error_rate,
+    }
+
+# Modify app.py
+from flask import Flask, make_response, request, Response
+
+@app.after_request
+def after_request_func(response: Response) -> Response:
+    # ...
+    request_instruments["error_rate"].add(1, {
+            "http.route": request.path,
+            "state": "success" if response.status_code < 400 else "fail",
+        }
+    )
+    return response
+
+# Latency
+# Add request_latency to metric_utils.py
+def create_request_instruments(meter: metrics.Meter) -> dict:
+    request_latency = meter.create_histogram(
+        name="http.server.request.duration",
+        unit="s",
+        description="latency for a request to be served",
+    )
+
+    instruments = {
+        "traffic_volume": traffic_volume,
+        "error_rate": error_rate,
+        "request_latency": request_latency,
+    }
+
+# Modify app.py
+@app.before_request
+def before_request_func():
+    request.environ["request_start"] = time.time_ns()
+
+@app.after_request
+def after_request_func(response: Response) -> Response:
+    request_end = time.time_ns()
+    duration = (request_end - request.environ["request_start"]) / 1_000_000_000 # convert ns to s
+    request_instruments["request_latency"].record(
+        duration,
+        attributes = {
+            "http.request.method": request.method,
+            "http.route": request.path,
+            "http.response.status_code": response.status_code
+        }
+    )
+    return response
+
+# stop the app with Ctrl+C
+# If jq is not installed, you can install by executing apt-get update && apt-get install jq -y
+
+# send a couple of POST and GET requests via
+curl -XGET localhost:5000; echo
+curl -XPOST localhost:5000; echo
+
+
+# Saturation: amount of work that a resource is unable to service.
+# modify the metrics.py
+import psutil
+
+# callbacks for asynchronous instruments
+def get_cpu_utilization(opt: metric_api.CallbackOptions) -> metric_api.Observation:
+    cpu_util = psutil.cpu_percent(interval=None) / 100
+    yield metric_api.Observation(cpu_util)
+
+def create_resource_instruments(meter: metric_api.Meter) -> dict:
+    cpu_util_gauge = meter.create_observable_gauge(
+        name="process.cpu.utilization",
+        callbacks=[get_cpu_utilization],
+        unit="1",
+        description="CPU utilization since last call",
+    )
+
+    instruments = {
+        "cpu_utilization": cpu_util_gauge
+    }
+    return instruments
+
+# Modify app.py
+import logging
+from metric_utils import create_meter, create_request_instruments, create_resource_instruments
+
+if __name__ == "__main__":
+    # disable logs of builtin webserver for load test
+    logging.getLogger("werkzeug").disabled = True
+
+    # instrumentation
+    request_instruments = create_request_instruments(meter)
+    create_resource_instruments(meter)
+
+    # launch app
+    db = ChaosClient(client=FakerClient())
+    app.run(host="0.0.0.0", debug=True)
+
+# If ab command is not installed, you can install it by executing the following command:
+apt-get update && apt-get install apache2-utils -y
+
+# Start the app and filter the output:
+python app.py | tail -n +3 | jq '.resource_metrics[].scope_metrics[].metrics[] | select (.name=="process.cpu.utilization")'
+
+# Run the ab command to apply the load, and examine the metrics rendered to the terminal.
+ab -n 50000 -c 100 http:‌//localhost:5000/users
+
+
+# Views: let us customize how metrics are collected and output by the SDK.
+# Modify the metric_utils.py
+from opentelemetry.sdk.metrics.view import (
+    View,
+    DropAggregation,
+    ExplicitBucketHistogramAggregation,
+)
+
+def create_views() -> list[View]:
+    views = []
+    # ...
+    return views
+
+def create_meter(name: str, version: str) -> metrics.Meter:
+    views = create_views()
+    provider = MeterProvider(
+        metric_readers=[metric_reader],
+        resource=rc,
+        views=views # <-- register views
+    )
+
+# instruct the View on how to modify the metrics stream
+# Modify metric_utils.py
+# adjust aggregation of an instrument
+
+histogram_explicit_buckets = View(
+
+    instrument_type=Histogram,
+
+    instrument_name="*", # wildcard pattern matching
+
+aggregation=ExplicitBucketHistogramAggregation((0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10)) # <-- define buckets
+
+)
+
+views.append(histogram_explicit_buckets)
+
+# Run the app:
+python app.py | tail -n +3 | jq '.resource_metrics[].scope_metrics[].metrics[] | select (.name=="http.server.request.duration")'
+
+# add these code snippets to create_views in metric_utils.py
+# change what attributes to report
+traffic_volume_drop_attributes = View(
+    instrument_type=Counter,
+    instrument_name="traffic_volume",
+    attribute_keys={}, # <-- drop all attributes
+)
+views.append(traffic_volume_drop_attributes)
+
+# change name of an instrument
+traffic_volume_change_name = View(
+    instrument_type=Counter,
+    instrument_name="traffic_volume",
+    name="test", # <-- change name
+)
+views.append(traffic_volume_change_name)
+
+# drop entire instrument
+drop_instrument = View(
+    instrument_type=ObservableGauge,
+    instrument_name="process.cpu.utilization",
+    aggregation=DropAggregation(), # <-- drop measurements
+)
+views.append(drop_instrument)
+
+# Observe the app:
+python app.py | tail -n +3 | jq '.resource_metrics[].scope_metrics[].metrics[] | select (.name=="http.server.request.duration")'

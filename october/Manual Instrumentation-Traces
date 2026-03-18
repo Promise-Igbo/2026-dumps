@@ -1,0 +1,195 @@
+## Repo: https://github.com/lftraining/LFS148-code
+
+cd $EXERCISES
+cd manual-instrumentation-traces/initial
+
+# Start the echo server using
+docker compose up
+
+# Change to the Python source directory
+cd $EXERCISES
+cd manual-instrumentation-traces/initial/src
+
+# Start the Python app/webserver
+python app.py
+
+# Test the Python app with the following command
+curl -XGET localhost:5000; echo
+# You should see a response
+
+# Test the echo server:
+curl -XGET localhost:6000; echo
+# You should see a JSON response
+
+## If stuck go through: exercises/manual-instrumentation-traces/solution/src
+
+# Configure the Tracing Pipeline and Obtain a Tracer
+# Create a new function create_tracing_pipeline with the code:
+# OTel API
+from opentelemetry import trace as trace_api
+
+# OTel SDK
+from opentelemetry.sdk.trace import TracerProvider
+
+def create_tracer(name: str, version: str) -> trace_api.Tracer:
+
+    provider = TracerProvider()
+    provider.add_span_processor(create_tracing_pipeline())
+    trace_api.set_tracer_provider(provider)
+    tracer = trace_api.get_tracer(name, version)
+    return tracer
+
+# In app.py import the create_tracer function and assign the return value to a global variable called tracer.
+app.py
+from trace_utils import create_tracer
+
+# global variables
+app = Flask(__name__
+tracer = create_tracer("app.py", "0.1")
+
+python app.py
+
+# Run the python app.py command to verify that there are no errors.
+
+# Add this within app.py
+app.py
+@app.route("/")
+@tracer.start_as_current_span("index")
+def index():
+# ...
+
+# Switch to the terminal and run
+python app.py
+
+# Switch to your other terminal and use the following command to send a request to the /endpoint
+curl -XGET localhost:5000; echo
+
+# Create a new file resource_utils.py in the src directory with the source code below 
+from opentelemetry.sdk.resources import Resource
+
+def create_resource(name: str, version: str) -> Resource:
+    svc_resource = Resource.create(
+        {
+            "service.name": name,
+            "service.version": version,
+        }
+    )
+    return svc_resource
+
+# Edit the existing trace_utils.py as shown below to invoke functionality from resource_utils.
+trace_utils.py
+from resource_utils import create_resource
+
+def create_tracer(name: str, version: str) -> trace_api.Tracer:
+    # create provider
+    provider = TracerProvider(
+        resource=create_resource(name, version)
+    )
+    provider.add_span_processor(create_tracing_pipeline())
+
+# Run
+python app.py
+# Send a request using the previous curl command in the other terminal window.
+curl -XGET localhost:5000; echo
+
+# Start by specifying imports at the top of the file and use ResourceAttributes within the create_resource function.
+resource_utils.py
+from opentelemetry.semconv.resource import ResourceAttributes
+
+def create_resource(name: str, version: str) -> Resource:
+    svc_rc = Resource.create(
+        {
+            ResourceAttributes.SERVICE_NAME: name,
+            ResourceAttributes.SERVICE_VERSION: version,
+        }
+    )
+    return svc_rc
+
+# Modify app.py to match the following code snippet.
+app.py
+from flask import Flask, make_response, request
+
+from opentelemetry import trace as trace_api
+from opentelemetry.semconv.trace import SpanAttributes
+
+@app.route("/")
+@tracer.start_as_current_span("index")
+def index():
+    span = trace_api.get_current_span()
+    span.set_attributes(
+        {
+            SpanAttributes.HTTP_REQUEST_METHOD: request.method,
+            SpanAttributes.URL_PATH: request.path,
+            SpanAttributes.HTTP_RESPONSE_STATUS_CODE: 200,
+        }
+    )
+    do_stuff()
+    …
+
+# Make sure the application is still running after the changes. Otherwise restart it and redo the curl call.
+curl -XGET localhost:5000; echo
+
+# In app.py add a decorator to the do_stuff function to create a new span.
+app.py
+@tracer.start_as_current_span("do_stuff")
+def do_stuff():
+    # ...
+
+# Curl the / endpoint as before using:
+curl -XGET localhost:5000; echo
+
+# Modify app.py according to the snippet below:
+app.py
+import json # <-- to pretty print response
+
+@tracer.start_as_current_span("do_stuff")
+def do_stuff():
+    # ...
+    response = requests.get(url)
+
+    # debug
+    print("Headers included in outbound request:")
+    print(json.dumps(response.json()["request"]["headers"], indent=2))
+    # ...
+
+# Modify app.py again according to the snippet below.
+app.py
+from opentelemetry.propagate import inject
+
+@tracer.start_as_current_span("do_stuff")
+def do_stuff():
+    headers = {}
+    inject(headers)
+    # …
+    response = requests.get(url, headers=headers) # <- inject trace context into headers
+
+# To simulate this, let’s add the start_as_current_span function to the /users endpoint, as shown in the code below
+app.py
+@app.route("/users", methods=["GET"])
+@tracer.start_as_current_span("users")
+def get_user():
+    # ...
+
+# Use the curl command shown to send a request with a fictional tracing header to the application:
+curl -XGET "localhost:5000/users" --header "traceparent: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-00ffffffffffffff-01"
+
+# Now, let’s look at the required code. The import statements and the two functions are shown below:
+app.py
+from opentelemetry import context
+from opentelemetry.propagate import inject, extract
+
+@app.teardown_request
+def teardown_request_func(err):
+    previous_ctx = request.environ.get("previous_ctx_token", None)
+    if previous_ctx:
+        context.detach(previous_ctx)
+
+@app.before_request
+def before_request_func():
+    ctx = extract(request.headers)
+    previous_ctx = context.attach(ctx)
+    request.environ["previous_ctx_token"] = previous_ctx
+
+# Make sure the app is up and running. After that repeat curl call:
+curl -XGET "localhost:5000/users" --header "traceparent: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-00ffffffffffffff-01"
+

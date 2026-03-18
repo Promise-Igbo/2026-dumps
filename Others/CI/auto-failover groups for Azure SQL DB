@@ -1,0 +1,66 @@
+## Create primary and secondary Azure SQL servers
+# Create a resource group
+az group create --name <your_resource_group> --location <your_location>
+
+# Create the primary SQL server
+az sql server create --name <your_primary_server> --resource-group <your_resource_group> --location <your_location> --admin-user "sqladmin" --admin-password <your_admin_password>
+
+# Create the secondary SQL server. Same script, only change the server name and location
+az sql server create --name <your_secondary_server> --resource-group <your_resource_group> --location <your_location> --admin-user "sqladmin" --admin-password <your_admin_password>    
+
+# Create a sample database on the primary server with the specified pricing tier
+az sql db create --resource-group <your_resource_group> --server <your_primary_server> --name AdventureWorksLT --sample-name AdventureWorksLT --service-objective "S0"    
+
+# Add your IP address to the firewall rules.
+# Select Allow Azure services and resources to access this server option.
+
+## Configure auto-failover groups
+# Create the failover group
+az sql failover-group create -n <your_failover_group> -g <your_resource_group> -s <your_primary_server> --partner-server <your_secondary_server> --failover-policy Automatic --grace-period 1 --add-db AdventureWorksLT
+
+# Verify the failover group
+az sql failover-group show -n <your_failover_group> -g <your_resource_group> -s <your_primary_server>
+# By checking the role attribute within each partner server, you can determine whether a server is currently acting as the primary or secondary.
+
+## Integrate with the application code
+# In Visual Studio Code, open the terminal and run the following commands to install the Microsoft.Data.SqlClient package and create a new .NET console application.
+dotnet new console -n AdventureWorksLTApp
+cd AdventureWorksLTApp 
+dotnet add package Microsoft.Data.SqlClient --version 5.2.1
+
+# Open the AdventureWorksLTApp folder that was created with the previous step in Visual Studio Code.
+# Create an appsettings.json file in the root of your project directory. This configuration file will store your database connection string. Be sure to replace the <your_failover_group> and <your_password> values in the connection string with your actual details.
+
+ {
+   "ConnectionStrings": {
+     "FailoverGroupConnection": "Server=tcp:<your_failover_group>.database.windows.net,1433;Initial Catalog=AdventureWorksLT;Persist Security Info=False;User ID=sqladmin;Password=<your_password>;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+   }
+ }
+
+# Open the .csproj file in Visual Studio Code and add the following content right below the </PropertyGroup> tag.
+
+ <ItemGroup>
+     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.0.0" />
+     <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.0" />
+     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0" />
+ </ItemGroup>
+
+# Your complete .csproj file should look similar to this.
+
+# Open the Program.cs file in Visual Studio Code. In the editor, replace all the existing code with the code provided.
+
+# Run the code by selecting Run > Start Debugging from the menu, or simply press F5. 
+# After running the code, you should see the output in the Debug Console tab in Visual Studio Code.
+Primary Server: <your_server_name>
+Secondary Server: <your_server_name>
+Database: AdventureWorksLT
+Replication State: CATCH_UP
+
+# The replication state CATCH_UP means that the database is fully synchronized with its partner and is ready for failover.
+
+## Fail over to a secondary region
+# On Azure portal, open a new instance of Cloud Shell terminal. Run the following code. Replace the values <your_failover_group>, <your_resource_group>, and <your_primary_server> with your actual values. The --server parameter value should be the current secondary.
+
+az sql failover-group set-primary --name <your_failover_group> --resource-group <your_resource_group> --server <your_server_name>
+
+# Once the failover is complete, run the application again to verify the replication status. You should see that the secondary server has now taken over as the primary, and the original primary server has become the secondary.

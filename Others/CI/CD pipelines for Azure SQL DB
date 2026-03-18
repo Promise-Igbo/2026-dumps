@@ -1,0 +1,50 @@
+## Create an Azure SQL Database
+# Make sure you add your IP address to the firewall rules.
+# Select the Allow Azure services and resources to access this server to allow Github access
+
+## Set up a GitHub repository
+# Create a new private repo
+# Clone the repo: https://github.com/Promise-Igbo/my-sql-db-repo.git
+
+## Create and configure an Azure SQL Database project
+# In the command palette, type Database projects: New and select it
+# Select Azure SQL Database, Enter the name MyDBProj, and press Enter to confirm.
+# Select the cloned GitHub repository folder to save the project.
+# For SDK-style projects, select Yes (Recommended)
+
+## Create a new SQL file in the project
+# On Visual Studio Code, select the Database Projects icon located in the activity bar on the left.
+# Right-click on your project name, and select Add Table.
+# Name the table Employees and press Enter.
+# Replace the existing script with the following code.
+CREATE TABLE [dbo].[Employees]
+(
+    EmployeeID INT PRIMARY KEY,
+    FirstName NVARCHAR(50),
+    LastName NVARCHAR(50),
+    Department NVARCHAR(50)
+);
+
+# Close the editor. Notice that the Employees.sql file is saved in the project.
+
+## Commit the changes to the repository
+# On Visual Studio Code, select the Source Control icon located in the activity bar on the left.
+# Enter the message Created project and added a create table script.
+# Select Commit to commit your changes.
+# Under the ellipsis, select Push to push the changes to the repository.
+
+## Verify the changes in the repository
+
+## Set up Continuous Integration (CI) with GitHub Actions
+# Add Secrets on your repository secret:
+# AZURE_CREDENTIALS (or managed identity), AZURE_CONN_STRING: Server=<your_sqldb_server>.database.windows.net;Initial Catalog=MyDB;Persist Security Info=False;User ID=sqladmin;Password=<your_password>;Encrypt=True;Connection Timeout=30;
+
+## Create a GitHub Actions workflow
+# Select the set up a workflow yourself link: main.yml file
+# Build and Deploy SQL Database Project workflow
+
+## Verify the changes in the Azure SQL Database
+# Navigate to the MyDB SQL Database.
+# Select Query editor.
+# Connect to the database using the sqladmin credentials.
+# Under the Tables section, verify that the Employees table is created. Refresh if needed.

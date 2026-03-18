@@ -1,0 +1,61 @@
+## Data API Builder (DAB) is a cross-platform, open-source engine that requires zero code and a single configuration file.
+
+## It provides a standardized way to perform CRUD (Create, Read, Update, Delete) operations on data, enabling seamless integration between different systems and applications. 
+
+## develop and deploy a data API for an Azure SQL Database using Azure Static Web Apps
+
+## Install the Visual Studio Code extensions
+# Install the Static Web Apps CLI 
+npm install -g @azure/static-web-apps-cli
+
+# Install the Data API Builder CLI
+dotnet tool install --global Microsoft.DataApiBuilder
+
+# Create an Azure SQL Database and Add your IP address to the firewall rules
+# Add Sample Data to the Database
+# Navigate to your newly created Azure SQL Database.
+# Use the Query editor in the Azure portal to run the following SQL script:
+CREATE TABLE [dbo].[Employees]
+(
+    EmployeeID INT PRIMARY KEY,
+    FirstName NVARCHAR(50),
+    LastName NVARCHAR(50),
+    Department NVARCHAR(50)
+);
+    
+INSERT INTO [dbo].[Employees] VALUES (1,'John', 'Smith', 'Accounting');
+INSERT INTO [dbo].[Employees] VALUES (2,'Michelle', 'Sanchez', 'IT');
+    
+SELECT * FROM [dbo].[Employees];
+
+## Create a basic web app in GitHub
+# This is the repo: https://github.com/Promise-Igbo/my-sql-repo.git
+
+# Create an Azure Static Web App using the repo
+
+## Add Data API Builder configuration file
+# clone the GitHub repository on vscode and run command to create a new Data API Builder configuration file
+swa db init --database-type "mssql"
+# This will create a new folder named swa-db-connections and a file named staticwebapp.database.config.json inside that folder.
+
+# Run the following command to add the database entities to the configuration file
+dab add "Employees" --source "dbo.Employees" --permissions "anonymous:*" --config "swa-db-connections/staticwebapp.database.config.json"
+
+# Review the contents of the staticwebapp.database.config.json file, commit and push
+
+## Configure the database connection
+# On Azure static web app, Under Settings, select Database connection.
+# Select Link existing database.
+
+# Database Type:	Azure SQL Database
+# Authentication Type:	Connection String
+# Username:	your admin user name
+# Password:	the password you gave you admin user
+# Acknowledgement checkbox:	Checked
+
+# Select Link.
+
+## Test the Data API endpoint
+# navigate to the Azure Static Web App, browse URL of the web app, Add /data-api to the end of the URL and press Enter.
+# It should display Healthy to indicate that the Data API is working.
+# Add /data-api/rest/Employees to the end of the URL and press Enter. You should see the sample data you added to the Azure SQL Database earlier.
