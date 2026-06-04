@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: cilium-test-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            cat > /etc/nginx/conf.d/default.conf <<EOF
+            server {
+              listen 8080;
+              location /api/users {
+                return 200 '{"users": ["alice", "bob"]}';
+                add_header Content-Type application/json;
+              }
+              location /api/products {
+                return 200 '{"products": ["laptop", "phone"]}';
+                add_header Content-Type application/json;
+              }
+              location /admin {
+                return 200 '{"admin": "secret data"}';
+                add_header Content-Type application/json;
+              }
+              location /health {
+                return 200 'OK';
+                add_header Content-Type text/plain;
+              }
+            }
+            EOF
+            nginx -g 'daemon off;'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: cilium-test-app
+  labels:
+    app: backend
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: backend

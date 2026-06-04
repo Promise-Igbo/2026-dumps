@@ -1,0 +1,146 @@
+## Cilium Cluster Mesh Benefits
+# 1. Pod IP routing across multiple Kubernetes clusters at native performance via tunneling or direct-routing without requiring any gateways or proxies.
+# 2. Transparent service discovery of globally available Kubernetes services using coredns/kube-dns.
+# 3. Network policy enforcement spanning multiple clusters.
+# 4. Policies can be specified as Kubernetes NetworkPolicy or CiliumNetworkPolicy resources.
+# 5. Transparent encryption for all communication between nodes anywhere in all the clusters.
+
+## Cluster Mesh Requirements
+# 1. All Kubernetes worker nodes must be assigned a unique IP address, and all worker nodes must have IP connectivity between each other.
+# 2. All clusters must be assigned unique PodCIDR ranges to prevent pod IP addresses from overlapping across the mesh.
+# 3. The network between clusters must allow inter-cluster communication so Cilium agents can access all Cluster Mesh API Servers in the mesh. Public cloud Kubernetes services typically use virtual private network peering and/or network security group configuration to ensure node-to-node communication between clusters.
+
+## Cluster Mesh Architecture
+# 1. Each Kubernetes cluster runs its own Cluster Mesh API Server, which contains an etcd instance to keep track of the cluster’s state.
+# 2. Cilium agents in other clusters connect to the Cluster Mesh API Server to watch for changes and replicate the multi-cluster state into their own cluster.
+# 3. Access to the Cluster Mesh API Servers running in each cluster is protected using TLS certificates.
+# 4. State from multiple clusters is never mixed. Access from one cluster into another is always read-only. This ensures that the failure domain remains unchanged, i.e. failures in one cluster never propagate into other clusters.
+# 5. Configuration occurs via a simple Kubernetes secrets resource that contains the addressing information of the remote etcd proxies, the cluster name, and the certificates required to access the etcd proxies associated with the Cluster Mesh API Servers.
+
+
+## Establishing service load-balancing between clusters is achieved by defining a Kubernetes service with an identical name and namespace in each cluster and adding the annotation service.cilium.io/global: "true"
+
+## Once the Cluster Mesh is enabled, it's possible to write a network policy to better secure cross-cluster pod-to-pod communication.
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-cross-cluster"
+spec:
+  description: "Allow x-wing in cluster1 to contact rebel-base in cluster2"
+  endpointSelector:
+    matchLabels:
+      name: x-wing
+      io.cilium.k8s.policy.cluster: cluster1
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        name: rebel-base
+        io.cilium.k8s.policy.cluster: cluster2
+
+# To begin
+## Prepare the Multi-Cluster Environment (At least 2 clusters are needed)
+# 1. Worker nodes in all clusters must be able to communicate with each other.
+# 2. PodCIDRs must not conflict across clusters.
+# 3. Firewall and networking security rules must allow for client access to ClusterMesh API Services across all clusters.
+
+# This is for kind clusters
+# 1. alliance-sector-01-kind-config.yaml.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: alliance-sector-01
+nodes:
+  - role: control-plane
+  - role: worker
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: none
+  serviceSubnet: "10.11.0.0/16"
+  podSubnet: "10.10.0.0/16"
+
+# 2. alliance-sector-02-kind-config.yaml.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: alliance-sector-02
+nodes:
+  - role: control-plane
+  - role: worker
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: none
+  serviceSubnet: "10.21.0.0/16"
+  podSubnet: "10.20.0.0/16"
+
+# Now create the kind clusters:
+kind create cluster --config alliance-sector-01-kind-config.yaml
+kind create cluster --config alliance-sector-02-kind-config.yaml
+
+kubectl config get-contexts
+
+# Let’s save the contexts to environment variables that we can re-use later in the lab.
+export CLUSTER1=kind-alliance-sector-01
+export CLUSTER2=kind-alliance-sector-02
+
+# Install Cilium on All Clusters
+# Let’s install Cilium into the alliance-sector-01 cluster:
+cilium install --context $CLUSTER1 --set cluster.name=kind-alliance-sector-01 --set cluster.id=1 --set encryption.enabled=true --set encryption.type=wireguard --helm-set "l7Proxy=false"
+
+cilium status --context $CLUSTER1
+
+# Now we can install Cilium into the sector-02 cluster:
+cilium install --context $CLUSTER2 --set cluster.name=kind-alliance-sector-02 --set cluster.id=2 --set encryption.enabled=true --set encryption.type=wireguard --helm-set "l7Proxy=false"
+
+kubectl --context=$CLUSTER1 get secret -n kube-system cilium-ca -o yaml | kubectl --context $CLUSTER2 replace --force -f -
+
+cilium status --context $CLUSTER2
+
+# Enabling the Cluster Mesh
+cilium clustermesh enable --service-type NodePort --context $CLUSTER1
+cilium clustermesh enable --service-type NodePort --context $CLUSTER2
+
+cilium status --context $CLUSTER1
+cilium status --context $CLUSTER2
+
+# OR
+cilium clustermesh status --context $CLUSTER1
+cilium clustermesh status --context $CLUSTER2
+
+# To connect the two clusters into a common Cluster Mesh:
+cilium clustermesh connect --context $CLUSTER1 --destination-context $CLUSTER2
+
+cilium clustermesh status --context $CLUSTER2 --wait
+cilium clustermesh status --context $CLUSTER1 --wait
+
+# Create a Global Service
+# In Cluster1 deploy this:
+kubectl apply --context $CLUSTER1 -f https://raw.githubusercontent.com/cilium/cilium/refs/heads/main/examples/kubernetes/clustermesh/cluster1.yaml
+kubectl apply --context $CLUSTER1 -f https://raw.githubusercontent.com/cilium/cilium/refs/heads/main/examples/kubernetes/clustermesh/global-service-example.yaml
+
+# In Cluster2 deploy this:
+kubectl apply --context $CLUSTER2 -f https://raw.githubusercontent.com/cilium/cilium/refs/heads/main/examples/kubernetes/clustermesh/cluster2.yaml
+kubectl apply --context $CLUSTER2 -f https://raw.githubusercontent.com/cilium/cilium/refs/heads/main/examples/kubernetes/clustermesh/global-service-example.yaml
+
+# The rebel-base service is annotated to be a globally shared service:
+kubectl get service/rebel-base --context $CLUSTER2 -o json | jq .metadata.annotations
+
+# Repeat this command a few times to see a mix of responses
+kubectl --context $CLUSTER1 exec -ti deployment/x-wing -- curl rebel-base
+kubectl --context $CLUSTER2 exec -ti deployment/x-wing -- curl rebel-base
+
+# Working with Cluster Affinity
+kubectl --context=$CLUSTER1 annotate service rebel-base service.cilium.io/affinity=local --overwrite
+
+kubectl --context $CLUSTER1 scale --replicas=0 deploy/rebel-base
+
+kubectl --context $CLUSTER1 scale --replicas=2 deploy/rebel-base
+
+# Add local affinity annotation to the service in CLUSTER2
+kubectl --context=$CLUSTER2 annotate service rebel-base service.cilium.io/affinity=local --overwrite
+
+# Note: both clusters should only be contacting the Rebel Base local to them, in the same cluster.
+
+# Cilium can connect Kubernetes workloads with external workloads using features like:
+
+# Cilium Cluster Mesh (multi-cluster connectivity)
+# Egress Gateway
+# External Workload support (non-Kubernetes nodes)
+# L3/L4/L7 policies that apply to external IPs and services

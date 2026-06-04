@@ -1,0 +1,114 @@
+## Repo https://github.com/lftraining/LFS148-code
+
+# Initial directory: collector/initial
+# Solution directory: collector/solution
+# Source code: collector/initial/src
+
+# How to run the application
+python3 src/app.py
+docker compose up
+
+# Open the docker-compose.yml file
+# it only includes one service - an instance of the OpenTelemetry Collector
+# docker-compose.yml
+services:
+  otelcol:
+    image: otel/opentelemetry-collector-contrib:0.97.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml", "${OTELCOL_ARGS}"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - 4317:4317
+      - 4318:4318
+
+# Open the src directory in collector/initial
+# To use the OTLP exporter we need a new Python package called opentelemetry-exporter-otlp.
+# To install the package run the following command
+pip install opentelemetry-exporter-otlp
+
+# To use the OTLPLogExporter, add the following import statement to logging_utils.py
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+
+# Replace the ConsoleLogExporter with OTLPLogExporter
+logger_provider.add_log_record_processor(SimpleLogRecordProcessor(exporter=OTLPLogExporter(insecure=True))
+
+# The changes to metric_utils.py file should look like the following:
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+def create_otlp_reader(export_interval: int) -> MetricReader:
+    exporter = OTLPMetricExporter(insecure=True)
+    …
+
+# The changes to trace_utils.py file should look like the following:
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+def create_tracing_pipeline() -> BatchSpanProcessor:
+    exporter = OTLPSpanExporter(insecure=True)
+
+# To receive the sent telemetry data we need to tell the OpenTelemetry Collector that data is coming via the OTLP protocol. 
+# To do so, open the otel-collector-config.yml in collector/initial and start editing it.
+# To get a working configuration, you need to start by creating an OTLP Receiver that listens for logs, metrics, and traces on a host port
+
+# otel-collector-config.yml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+# To find all receivers in the [GitHub repository of the OpenTelemetry Collector.](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver)
+
+# edit the configuration file under processors and add an attributes/example
+# collector/initial/otel-collector-config.yml
+processors:
+  batch:
+  attributes/example:
+    actions:
+      - key: example_field
+        action: insert
+        value: Hello from the OpenTelemetry Collector
+
+# add an output to stdout, which is very useful for debugging purposes.
+# collector/initial/otel-collector-config.yml
+exporters:
+  debug:
+    verbosity: detailed
+
+# add the debug exporter to the service pipeline exporters.
+service:
+  pipelines:
+    metrics/example:
+      receivers: [otlp, prometheus]
+      processors: [batch]
+      exporters: [otlphttp/prometheus]
+    traces/example:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger, debug]
+
+# otel-collector-config.yml should look similar to this
+# collector/initial/otel-collector-config.yml
+service:
+  pipelines:
+    traces:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [debug]
+    metrics:
+        receivers: [otlp]
+        processors: [batch]
+        exporters: [debug]
+    logs:
+        receivers: [otlp]
+        processors: [batch, attributes/example]
+        exporters: [debug]
+
+# To start the Collector
+# collector/initial/docker-compose.yml
+docker compose up
+
+# To send metrics, traces, and logs from our application, you can run the application with:
+# collector/initial
+python3 src/app.py
+

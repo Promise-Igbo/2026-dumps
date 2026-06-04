@@ -1,0 +1,52 @@
+## By encrypting the traffic between nodes in your cluster, you no longer have to implicitly trust the network itself, and you don’t have to worry about other systems sharing the network being able to read sensitive information passed between microservices in different nodes in your cluster.
+
+# Cilium offers an easy way to enable transparent node-to-node encryption, using WireGuard or IPSec, without having to modify any microservice application code or configuration. 
+
+# WireGuard and IPsec are both protocols that provide in-kernel transparent traffic encryption.
+
+# WireGuard is a peer-based VPN solution. A VPN connection is made between peers simply by exchanging public keys (similar to exchanging SSH keys).
+
+# IPsec is a similar, older, and FIPS-compliant solution.
+
+# When WireGuard or IPsec is enabled in Cilium, the Cilium agent running on each cluster node will establish a secure tunnel to other Cilium-managed nodes in the cluster.
+
+# to set up transparent encryption in an existing Cilium-managed cluster.
+helm upgrade cilium cilium/cilium --namespace kube-system \
+  --set encryption.enabled=true \
+  --set encryption.type=wireguard
+
+# And restart the cilium daemonset:
+kubectl rollout restart daemonset/cilium -n kube-system
+
+cilium status --wait
+
+# OR, If you want to do a fresh Cilium install with the Cilium CLI tool, you can install with WireGuard encryption enabled using this command:
+cilium install --encryption wireguard
+
+# Next
+kubectl get -n kube-system CiliumNodes
+
+kubectl get -n kube-system CiliumNode kind-worker -o json | jq .metadata.annotations
+
+# Verifying Transparent Encryption
+kubectl exec -n kube-system -ti ds/cilium -- cilium status |grep Encryption
+
+# If we check the IP devices available in the host network, we should see a new device named cilium_wg0
+kubectl exec -n kube-system -ti ds/cilium -- ip link |grep cilium
+
+# Let’s get an interactive bash shell in the cilium agent container and install tcpdump:
+kubectl exec -n kube-system -ti pod/cilium-2j6zl -- /bin/bash
+
+# And at this root shell inside the container, let's install tcpdump:
+apt-get update
+apt-get -y install tcpdump
+
+# Once installed, we can watch the packet flow through the WireGuard network device:
+tcpdump -n -i cilium_wg0
+
+kubectl describe node kind-worker
+
+# Let’s run the TIE fighter landing request a few times:
+kubectl exec tiefighter -- curl -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+# Next is kube-proxy

@@ -1,0 +1,127 @@
+## The network policies available with Cilium enabled Kubernetes.
+# 1. The standard Kubernetes NetworkPolicy resource which supports layer 3 and 4 policies.
+# 2. The CiliumNetworkPolicy resource which supports Layers 3, 4, and 7 (application layer) policies.
+# 3. The CiliumClusterwideNetworkPolicy resource for specifying policies that apply to an entire cluster rather than a specified namespace.
+
+## Visual policy editor: https://editor.networkpolicy.io/?id=bQRWOT8oLfVd7W4d
+# Visual policy editor to correctly edit network policies, by providing you with a graphical depiction of a cluster and letting you select the correct policy elements scoped for the desired type of network policy.
+
+## craft a CiliumNetworkPolicy resource to limit access to the Death Star service so TIE fighters can only make HTTP based landing requests.
+# Prerequesites:
+# 1. Kubernetes cluster with Cilium installed
+# 2. deploy a Death Star application: https://docs.cilium.io/en/latest/gettingstarted/demo/#deploy-the-demo-application
+
+# or You can install the manifest into your cluster’s default namespace using
+kubectl create -f https:‌//raw.githubusercontent.com/cilium/cilium/HEAD/examples/minikube/http-sw-app.yaml
+
+kubectl get services
+kubectl get pods,CiliumEndpoints
+
+kubectl exec xwing -- curl -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+kubectl exec tiefighter -- curl -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+# An L3 policy would restrict access to all network ports at the endpoint. If you want to limit access to a specific port number, you can write a label-based L4 policy.
+kubectl describe pod/xwing
+kubectl describe pod/tiefighter
+
+# The policy editor’s read-only YAML should have something similar to this
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-empire-in-namespace
+spec:
+  endpointSelector:
+    matchLabels:
+      org: empire
+      class: deathstar
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+          org: empire
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+
+# You can download the L4 policy from the policy editor UI into a file named allow-empire-in-namespace.yaml and apply it to your cluster:
+kubectl apply -f allow-empire-in-namespace.yaml
+
+kubectl exec xwing -- curl --connect-timeout 10 -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+kubectl exec tiefighter -- curl --connect-timeout 10 -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+kubectl exec tiefighter -- curl -s -XPUT deathstar.default.svc.cluster.local/v1/exhaust-port
+
+# For L7 HTTP path, Let’s extend the empire access policy to include the rules for landing path and exhaust port paths explicitly.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-empire-in-namespace
+spec:
+  endpointSelector:
+    matchLabels:
+      org: empire
+      class: deathstar
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        org: empire
+        class: tiefighter
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "POST"
+          path: "/v1/request-landing"
+  - fromEndpoints:
+    - matchLabels:
+        org: empire
+        class: maintenance-droid
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+      rules:
+        http:
+        - method: "PUT"
+          path: "/v1/exhaust-port"
+
+# Save this policy update to the file allow-empire-in-namespace.yaml and apply to your cluster
+
+kubectl apply -f allow-empire-in-namespace.yaml
+
+kubectl exec tiefighter -- curl -v -s -XPUT deathstar.default.svc.cluster.local/v1/exhaust-port
+
+
+# For simple or light weight app
+kubectl create namespace cilium-test-app
+
+kubectl apply -f demo-app.yaml
+
+# We can visualize the traffic with the Hubble UI at localhost:12000
+# Since this service uses ClusterIP, let's generate some traffic by creating a temporary pod in the same namespace
+
+# create a temp pod
+kubectl run client -n cilium-test-app --image=curlimages/curl -- sleep 3600
+
+# exec in to the pod
+kubectl -n cilium-test-app exec -it client -- sh
+
+# then generate the traffic
+curl http://backend/api/users
+curl http://backend/api/products  
+curl http://backend/admin
+
+ssh -L 12000:localhost:12000 promise@<VM-PUBLIC-IP>
+
+kubectl port-forward -n kube-system svc/hubble-ui 12000:80
+
+# Browse
+http://localhost:12000
+
+# Let’s create a L7 Network policy that restricts the client to only /api/users and /health
+kubectl apply -f network-ploicy.yaml
+
+# Next is Hubble Observability

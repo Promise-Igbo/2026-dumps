@@ -1,0 +1,85 @@
+## Repo https://github.com/lftraining/LFS148-code
+# open app.py and insert import logging at the top of the module.
+
+@app.route("/")
+def index():
+    logging.info("Info from the index function")
+    do_stuff()
+    current_time = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
+    return f"Hello, World! It's currently {current_time}"
+
+# To test whether everything works, run the app via
+python src/app.py
+
+# or via the play button in the top-right corner of VS Code.
+# Now navigate to the index route of our web server at http:‌//localhost:5000/.
+
+# only log entries with severity warning and higher are displayed, To fix this, change logging.info to logging.warn
+
+# Or configure the logger to display other severity levels. To do so, add a statement to the top of app.py just under the imports.
+logging.basicConfig(level=logging.INFO)
+# With the basicConfig method, the logging module can be modified to display other severity levels.
+
+# To demonstrate the capabilities of logging complex structures, navigate to the get_user function in app.py.
+# To log a user, simply call any of the logging severity functions and pass an instantiated user.
+
+@app.route("/users", methods=["GET"])
+def get_user():
+    user, status = db.get_user(123)
+    logging.info(f"Found user {user!s} with status {status}")
+
+# Another use case could be to make a case differentiation when the user is None
+@app.route("/users", methods=["GET"])
+def get_user():
+    user, status = db.get_user(123)
+    logging.info(f"Found user {user!s} with status {status}")
+    data = {}
+    if user is not None:
+    data = {"id": user.id, "name": user.name, "address": user.address}
+    else:
+    logging.warning(f"Could not find user with id {123}")
+    logging.debug(f"Collected data is {data}")
+    response = make_response(data, status)
+    logging.debug(f"Generated response {response}")
+    return response
+
+# In the end, a LoggingHandler can be instantiated that uses the LoggerProvider. Your code should look something like the example below:
+logging_utils.py
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import ConsoleLogExporter, SimpleLogRecordProcessor
+from opentelemetry.sdk.resources import Resource
+
+logger_provider = LoggerProvider(
+    resource=Resource.create(
+    {
+        "service.name": "example-app",
+    }
+    ),
+)
+
+logger_provider.add_log_record_processor(SimpleLogRecordProcessor(ConsoleLogExporter()))
+handler = LoggingHandler(logger_provider=logger_provider)
+
+# This LoggingHandler then needs to be attached to the logging module of Python. This can be done in app.py with: 
+logger = logging.getLogger()
+logger.addHandler(handler)
+
+# With this setup, all logs of the logging module are now exported as OpenTelemetry logs and look like the following:
+
+{
+    "body": "Found user id: 711, name: Denise Schultz, address: 2188 Hall Street Suite 268\nSouth Joseph, VI 41735 with status 200",
+    "severity_number": "",
+    "severity_text": "INFO",
+    "attributes": null,
+    "dropped_attributes": 0,
+    "timestamp": "2024-02-07T12:00:10.246927Z",
+    "trace_id": "0x00000000000000000000000000000000",
+    "span_id": "0x0000000000000000",
+    "trace_flags": 0,
+    "resource": "BoundedAttributes({'telemetry.sdk.language': 'python',    'telemetry.sdk.name': 'opentelemetry', 'telemetry.sdk.version': '1.22.0', 'service.name': 'example-app'}, maxlen=None)"
+}
+
+# Since no tracing is set up, the trace_id and span_id are 0
+
+# For further example, OpenTelemetry Python repository https://github.com/open-telemetry/opentelemetry-python 
+

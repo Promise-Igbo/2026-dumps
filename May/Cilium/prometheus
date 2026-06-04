@@ -1,0 +1,77 @@
+## Prerequisites
+# 1. helm repo add cilium ht‌tps://helm.cilium.io
+# 2. If you have cilium installed on your cluster: cilium uninstall
+# 3. helm install cilium cilium/cilium --version 1.16.3 --namespace kube-system
+cilium status
+
+# If you see any unmanaged pods, you'll want to restart the ones Cilium does not currently manage. The quickest way to fix this is to delete all the pods that are not using the host network.
+kubectl get pods --all-namespaces -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,HOSTNETWORK:.spec.hostNetwork --no-headers=true | grep '<none>' | awk '{print "-n "$1" "$2}' | xargs -L 1 
+
+kubectl delete pod
+
+# remove all existing CiliumNetworkPolicy resources so that we have a clean slate
+kubectl delete --all CiliumNetworkPolicies
+
+# reinstall the Death Star API application or any application so we can have some metrics to look at
+kubectl apply -f https://raw.githubusercontent.com/cilium/cilium/refs/heads/main/examples/minikube/http-sw-app.yaml
+
+# let’s apply a simple CiliumNetworkPolicy rule to restrict access to the service to Imperial units
+https://raw.githubusercontent.com/cilium/cilium/refs/heads/main/examples/minikube/sw_l3_l4_l7_policy.yaml
+
+# Enable Cilium Metrics Collection
+helm upgrade cilium cilium/cilium --namespace=kube-system --reuse-values --set prometheus.enabled=true --set operator.prometheus.enabled=true
+
+# The cilium agent pods should now have a prometheus.io.port annotation
+kubectl get -n kube-system pod/cilium-59bf7 -o json | jq .metadata.annotations
+
+# First, let's get the IP address for the Cilium agent pod
+kubectl get -n kube-system pod/cilium-59bf7 -o json | jq .status.podIP
+
+kubectl exec -ti pod/tiefighter -- curl http:‌//<podip:port>/metrics
+
+# Let’s do a few X-wing landing requests:
+kubectl exec xwing -- curl -s --connect-timeout 2 -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+# then check the Cilium agent’s dropped packet metrics.
+kubectl exec -ti pod/xwing -- curl http:‌//10.89.0.8:9962/metrics| grep drop_count_total
+
+# Enable Hubble Metrics Collection
+helm upgrade cilium cilium/cilium --version 1.16.3 --namespace kube-system --reuse-values --set hubble.enabled=true --set hubble.metrics.enabled="{dns,drop,tcp,flow,port-distribution,httpV2}"
+
+# Restart the Cilium daemonset to ensure the configuration changes are active:
+kubectl rollout restart daemonset/cilium -n kube-system
+
+# There should now be a new headless service called hubble-metrics:
+kubectl -n kube-system get services
+
+kubectl -n kube-system describe service/hubble-metrics
+
+# To see the Hubble metrics we’ve enabled.
+kubectl exec -ti pod/tiefighter -- curl http:‌//<podip:port>/metrics | grep hubble_drop
+
+kubectl exec -ti pod/tiefighter -- curl http:‌//<podip:port>/metrics | grep hubble_tcp
+
+# If we make more X-wing landing requests:
+kubectl exec xwing -- curl -s --connect-timeout 2 -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+# we should now see the policy denied drop count increase:
+kubectl exec -ti pod/tiefighter -- curl http:‌//<podip:port>/metrics | grep hubble_drop
+
+# Adding Flow Context to Hubble Metrics
+helm upgrade cilium cilium/cilium --version 1.13.1 --namespace kube-system --reuse-values --set hubble.enabled=true --set hubble.metrics.enabled="{dns,drop:sourceContext=pod;destinationContext=pod,tcp,flow,port-distribution,httpV2}"
+
+# Restart the Cilium daemonset to ensure the configuration changes are active:
+kubectl rollout restart daemonset/cilium -n kube-system
+
+# Wait for the Cilium pods to refresh, and then attempt a few more X-wing landing requests before checking the Hubble dropped packet metrics:
+kubectl exec -ti pod/xwing -- curl http:‌//<podip:port>/metrics | grep hubble_drop
+
+# Dashboards For The Win
+kubectl apply -f https://raw.githubusercontent.com/cilium/cilium/refs/heads/main/examples/kubernetes/addons/prometheus/monitoring-example.yaml
+
+# Set up a local port forward of the Grafana service:
+kubectl -n cilium-monitoring port-forward service/grafana --address 0.0.0.0 --address :: 3000:3000
+
+# Open up a browser to http:‌//localhost:3000 and you should be able to navigate to one of the example dashboards like the General/Hubble dashboard
+
+# Next is transparent encryption

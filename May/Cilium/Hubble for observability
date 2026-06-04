@@ -1,0 +1,67 @@
+## Hubble is built on top of Cilium and eBPF to enable deep visibility into the communication and behavior of services, as well as the networking infrastructure in a completely transparent manner.
+
+# Network flows are a key concept in Hubble’s value. Flows are similar to a packet capture that you would get from a tool like tcpdump, except instead of focusing on the packet contents, flows are designed to help you better understand how packets flow through your Cilium-managed Kubernetes cluster.
+
+# To see the flow of events on a specific Kubernetes node, you could run "hubble observe --follow" in the Cilium agent container running on that node and get information about Cilium datapath verdicts for every packet entering and leaving that node that Cilium is aware of.
+
+# To expose the Hubble Relay service to your workstation: https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/
+
+# Or, just by using the Cilium CLI, which runs kubectl on our behalf.
+
+# Recreare and verify connectivity
+cilium hubble port-forward &
+hubble status
+
+# Once the port-forwarding is set up, you can use the Hubble CLI tool to gain access to cluster-wide network flow information:
+hubble observe --to-label "class=deathstar" --verdict DROPPED --all
+
+# As long as you make use of the Kubernetes labeling mechanism to provide enough context to tell your microservice application components apart, you can make use of those labels and scope your visibility into the network flows to diagnose a specific workload.
+
+# You can get access to the Hubble UI service on your local workstation using the Cilium CLI tool:
+cilium hubble ui
+
+# Prerequisites
+# You can install hubble cli tool: https://docs.cilium.io/en/stable/observability/hubble/setup/index.html#install-the-hubble-client
+
+hubble version
+# First, establish a local port-forwarded Hubble Relay service using the Cilium CLI tool:
+cilium hubble port-forward &
+# verify connectivity using the Hubble CLI’s status command
+hubble status
+# Based on the app used
+kubectl exec tiefighter -- curl --connect-timeout 10 -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+# Do some filtering
+kubectl exec xwing -- curl --connect-timeout 2 -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+# use the Hubble CLI tool to observe the flows
+hubble observe --label "class=xwing" --last 10
+# use the Hubble UI and get a service-map view of the situation: This should open a browser window for the Hubble UI now available on a localhost port
+cilium hubble ui
+
+# Craft DNS Deny Policy i.e xwing-dns-deny-policy.yaml
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "xwing-dns-deny"
+spec:
+  endpointSelector:
+    matchLabels:
+      class: xwing
+  egressDeny:
+  - toEndpoints:
+    - matchLabels:
+        namespace: kube-system
+        k8s-app: kube-dns
+
+kubectl apply -f xwing-dns-deny-policy.yaml
+
+kubectl exec xwing -- curl --connect-timeout 2 -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+hubble observe --label="class=xwing" --to-namespace "kube-system" --last 1
+
+kubectl exec tiefighter -- curl --connect-timeout 2 -s -XPOST deathstar.default.svc.cluster.local/v1/request-landing
+
+hubble observe --label="class=tiefighter" --to-namespace "kube-system" --last 1
+
+# Note: You could achieve a similar result by changing the policy from an EgressDeny policy applied to the X-wing pods to an IngressDeny policy applied to the pods acting as kube-dns service endpoints. 
+
+# Next is prometheus

@@ -1,0 +1,84 @@
+# To enable Cilium’s kube-proxy replacement is to use the Cilium CLI tool to install Cilium on a fresh cluster prepared without kube-proxy enabled.
+
+# If you are using Helm to facilitate the Cilium install:
+API_SERVER_IP=<your_api_server_ip>
+API_SERVER_PORT=<your_api_server_port>
+helm install cilium cilium/cilium --version 1.16.3 \
+     --namespace kube-system \
+     --set kubeProxyReplacement=strict \
+     --set k8sServiceHost=${API_SERVER_IP} \
+     --set k8sServicePort=${API_SERVER_PORT}
+
+# To start with a Kubernetes cluster created without kube-proxy installed
+# In kind-no-kp-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+- role: worker
+- role: worker
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: none
+
+kind create cluster --config kind-no-kp-config.yaml
+
+# confirm the cluster does not have kube-proxy installed
+kubectl get --all-namespaces daemonsets | grep kube-proxy
+kubectl get --all-namespaces pods | grep kube-proxy
+kubectl get --all-namespaces configmaps |grep kube-proxy
+
+# install Cilium using the Cilium CLI tool. It will auto-detect the need for the kube-proxy replacement and configure the Cilium Helm chart settings appropriately.
+cilium install
+
+# Validate the Configuration
+kubectl -n kube-system exec ds/cilium -- cilium status | grep KubeProxyReplacement
+
+cilium connectivity test --connect-timeout 30s --request-timeout 30s
+
+# my-nginx.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+spec:
+  selector:
+    matchLabels:
+      run: my-nginx
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: my-nginx
+    spec:
+      containers:
+        - name: my-nginx
+          image: nginx
+          ports:
+            - containerPort: 80
+
+kubectl apply -f my-nginx.yaml
+
+kubectl get pods -l run=my-nginx -o wide
+
+kubectl expose deployment my-nginx --type=NodePort --port=80
+
+kubectl get svc my-nginx
+
+# To validate that Cilium’s eBPF kube-proxy replacement created the new NodePort service
+kubectl -n kube-system exec ds/cilium -- cilium service list
+
+# let’s get shell access to one of the Cilium agent containers:
+kubectl -n kube-system exec -ti ds/cilium -- /bin/bash
+
+# Let’s install curl into the container:
+apt update
+apt install curl
+
+# We can now use curl from the Cilium agent container to confirm the NodePort service port results in a response from one of the Nginx servers
+curl http://localhost:32166
+
+# we can confirm from the Cilium agent container that there are no iptables rules associated with this service definition:
+iptables-save | grep KUBE-SVC
+
+# Next is cluster meshes
