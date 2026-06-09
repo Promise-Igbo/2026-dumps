@@ -1,0 +1,95 @@
+## Create Your Azure AI Foundry Project (New)
+# Go to Azure AI Foundry > Click “Create New Project” > Choose "Microsoft Foundry Resource" >
+# Give it a name > Select Azure subscription, RG, region > Create
+
+## Set Up Your Master Agent
+# In your project, click “Agents” in the left sidebar > New Agent
+# Click “Create Agent”
+# Name your agent: “MasterAgent”
+# Select your model GPT-4.1 for better reasoning
+
+## Writing the Master Agent System Prompt
+You are a routing agent.
+
+Decide which agent should handle the request:
+
+- DataAgent → for calculations, data processing
+- ResponseAgent → for explanations or answers
+
+Return ONLY one word:
+DataAgent
+or
+ResponseAgent
+
+Do not include context, explanation, or formatting.
+
+# Paste this prompt into the “Instructions” field > Save.
+
+## Create Your Worker Agents
+# Click “Create Agent” again > Name: “DataAgent”
+# System prompt:
+You are a Data Retrieval Agent.
+
+ORIGINAL REQUEST:
+{{input}}
+
+ROUTING DECISION:
+{{LatestMessage}}
+
+Your job is to:
+1. Analyze the ORIGINAL REQUEST
+2. Perform calculations or data processing
+3. Return only the result
+
+IMPORTANT:
+- Always use the ORIGINAL REQUEST above
+- No explanations or extra text
+Format: Start with "DATA FINDINGS:" then provide results
+
+# # Paste this prompt into the “Instructions” field > Save.
+
+## Create Your Worker Agents
+# Click “Create Agent” again > Name: “ResponseAgent”
+# System prompt:
+You are a Response Agent.
+
+ORIGINAL REQUEST:
+{{input}}
+
+ROUTING DECISION:
+{{LatestMessage}}
+
+Your job:
+- Provide a clear, user-friendly answer
+- Use the ORIGINAL REQUEST
+
+Return final response only.
+
+# # Paste this prompt into the “Instructions” field > Save.
+
+## Connect Your Agents Using Workflow
+# Click “Workflow” > Sequential Workflow > Click “Create Flow”
+# Assign an agent to the agent nodes by selecting each agent node in the workflow and either selecting the desired agent or creating a new one. 
+# Choose the "Masteragent" as node
+# use if/else > On if, add the condition: First(Local.LatestMessage).Text = "DataAgent"
+# Then, choose the "Dataagent" as node
+# On else, choose the "Responseagent" as node
+
+# Save, with a workflow name
+
+## To test
+# Click Preview
+
+## Test with this questions.
+# Calculate 10 * 25
+# What is kubernetes?
+
+## Note: 
+# First(Local.LatestMessage): Gets the first record from the table 
+# .Text: Extracts the actual string 
+# = "DataAgent": Compares correctly 
+
+# {{input}}: The user’s actual question
+# {{LatestMessage}}: The output of your MasterAgent
+
+## I can calculate traces using appinsights.
