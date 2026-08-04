@@ -1,58 +1,83 @@
-## Using AI for beginners
-git clone --depth 1 https://github.com/Promise-Igbo/ai-agents-for-beginners.git
-cd ai-agents-for-beginners
-## specify which folders you want to show
-git sparse-checkout set 00-course-setup 01-intro-to-ai-agents
+## Integrate an AI agent with Foundry IQ
 
-# Create Python venv directory
-python -m venv venv
-## activate venv environment
-# zsh/bash i.e for bash
-# source venv/bin/activate
-# Command Prompt for Windows
-venv\Scripts\activate
+# Create a Foundry project
+# Create an agent
+# Home > Build > Agent > Create
+# Choose a name and model (gpt 4.1)
 
-## to install all the required Python packages for this in the requirement.txt on the code
+# give your agent the following instructions:
+ You are a helpful AI assistant for Contoso, specializing in outdoor camping and hiking products. 
+ You must ALWAYS search the knowledge base to answer questions about our products or product 
+ catalog. Provide detailed, accurate information and always cite your sources.
+ If you don't find relevant information in the knowledge base, say so clearly.
+# Save
+
+# Knowledge > Add , and select Connect to Foundry IQ > Create new resource
+
+# Download this and extract 3 pdfs: https://github.com/MicrosoftLearning/mslearn-ai-agents/raw/main/Labfiles/04-integrate-agent-with-foundry-iq/data/contoso-products.zip
+
+# Go to Azure portal, create in storage account and save in blob container
+# Choose Azure Blob Storage as your knowledge source, then select Connect on your AI foundry
+
+# Configure the Knowledge base settings
+Name
+Description
+Storage account name
+Container name
+Authentication type: API Key
+Content extraction mode: minimal
+Embedding model: Select the available deployed model, likely text-embedding-3-small
+Chat completions model: gpt 4.1
+# Create
+
+# On the knowledge base creation page, select the gpt-4.1 model from the Chat completions model dropdown, leaving the rest of the field defaults as is.
+
+# Select Save knowledge base, and then refresh your browser to verify the knowledge source status is active.
+
+# Select the back button to return to the Knowledge page, then select the Manage link next to the Connection drop-down.
+
+# Scroll down to the Connected resources, where you should see your cognitivesearch service. Select that row, find the Authentication section, and select Edit authentication.
+
+# Return to the Azure portal tab, Copy one of those keys from access keys into the dialog in Foundry and select Save. (Change to API authentication if otherwise)
+
+## Test the Agent in the playground
+# Navigate back to your agent on the Build > Agents page, and select the agent you created.
+
+# Find the knowledge section and add Foundry IQ, selecting the connection and knowledge base you created.
+
+# test queries to verify the agent can retrieve information from the knowledge base:
+What types of tents does Contoso offer?
+Tell me about which backpacks are available in XL.
+What camping accessories are available?
+
+# Review the responses and notice:
+# The agent provides specific information from the knowledge base
+# Citations or references to the source documents may be included
+# The agent stays focused on product information
+
+# Agent name: product-expert-agent
+# Project endpoint: Found in the project settings or home page
+https://agent-iq-prom-resource.services.ai.azure.com/api/projects/agent-iq-prom
+
+## Connect to your agent from an app
+# On the .env configuration file of your app, add
+Agent name: 
+Project endpoint:
+# save
+
+# Complete the agent client code e.g agent_client.py
+# add code to connect to the project, get the OpenAI client, retrieve the agent, and create a new conversation
+
+## Test the Integration
+# create a virtual environment and install dependencies within the app or project
+python -m venv labenv
+./labenv/Scripts/activate
 pip install -r requirements.txt
 
-## Retrieve Your GitHub Personal Access Token (PAT)
-# This course leverages the GitHub Models Marketplace, providing free access to Large Language Models (LLMs) that you will use to build AI Agents.
-# Finegrained token - give it a name and description - expiration is 30days - select only the required repo - add permission (click account) - Models - Generate token
-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
+# In the terminal pane, enter the following command to sign into Azure.
+az login
 
-## Create Your .env File
-# zsh/bash
-# cp .env.example .env
-# PowerShell
-Copy-Item .env.example .env
+# In the terminal pane, run your application
+python agent_client.py
 
-# open the .env file and paste your token into the GITHUB_TOKEN field.
-
-## Set Up for Samples using Azure AI Foundry and Azure AI Agent Service
-# create a hub and project in Azure AI Foundry
-# retrieve the connection string for your project in the overview (Azure AI Foundry Project Endpoint).
-
-# Create an env file or use your existing one
-
-# Sign in to Azure
-az login --use-device-code
-
-# For Azure Search and Azure OpenAI
-# add the following environment variables to your .env file
-# AZURE_SUBSCRIPTION_ID
-# AZURE_AI_PROJECT_NAME - Look at the top of the Overview page for your project.
-# AZURE_OPENAI_SERVICE - Find this in the Included capabilities tab for Azure OpenAI Service on the Overview page.
-# AZURE_OPENAI_RESOURCE_GROUP - Go to Project properties on the Overview page of the Management Center.
-# GLOBAL_LLM_SERVICE - Under Connected resources, find the Azure AI Services connection name. If not listed, check the Azure portal under your resource group for the AI Services resource name.
-# AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME - Select your embedding model (e.g., text-embedding-ada-002) and note the Deployment name from the model details.
-# AZURE_OPENAI_CHAT_DEPLOYMENT_NAME - Select your chat model (e.g., gpt-4o-mini) and note the Deployment name from the model details.
-# AZURE_OPENAI_ENDPOINT
-# AZURE_OPENAI_API_KEY
-# AZURE_SEARCH_SERVICE_ENDPOINT - Find your Azure AI Search resource, click it, and see Overview.
-# AZURE_SEARCH_API_KEY - Then go to Settings and then Keys to copy the primary or secondary admin key.
-# AZURE_OPENAI_API_VERSION - Visit the API version lifecycle page under Latest GA API release.
-
-## Setup keyless authentication
-# import DefaultAzureCredential and later call the DefaultAzureCredential function to get the credential.
-# Python
-from azure.identity import DefaultAzureCredential, InteractiveBrowserCredential
+# test the agent 

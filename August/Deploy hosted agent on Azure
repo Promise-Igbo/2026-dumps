@@ -1,0 +1,8 @@
+## install extention
+azd ext install microsoft.foundry
+
+azd auth login
+
+## Initialize sample agent
+azd ai agent init -m "https://github.com/microsoft-foundry/foundry-samples/blob/main/samples/python/hosted-agents/agent-framework/responses/01-basic/azure.yaml" --deploy-mode code
+

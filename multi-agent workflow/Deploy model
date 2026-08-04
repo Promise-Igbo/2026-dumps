@@ -1,0 +1,27 @@
+## Deploy Your First Model
+# Create a Project
+# Discover > 'GPT-4.1-mini' for light weight task > Deploy
+# i choose default settings
+
+# Set instructions for the model.
+# Add prompts to test its behavior.
+# Save the configuration as an Agent for use in workflows.
+# You can add tools from where your agent can get information from.
+# Save agent
+
+## Create an agent
+# Click 'Build' > Click New Agent. 
+# Give the agent a name e.g Support-Agent
+
+## Configure Your Agent’s Behaviour e.g
+You are an AI assistant that extracts key details from invoices.
+Always return the results in this structure:
+Invoice Number:
+Supplier:
+Date:
+Total Amount:
+
+# Save
+
+## Test prompt
+# Extract details from this invoice: Invoice 7781 from BlueWave Ltd for £2,195 dated 12/04/2024.

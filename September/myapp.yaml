@@ -1,0 +1,12 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: my-first-app
+spec:
+  components:
+    - name: webservice
+      type: webservice
+      properties:
+        image: nginx
+        ports:
+          - port: 80

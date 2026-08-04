@@ -1,0 +1,77 @@
+## KubeVela is a modern application delivery platform that simplifies deploying and managing 
+ across Kubernetes and hybrid cloud environments.
+
+## Using Minikube to setup a local cluster
+minikube start
+## Have kubectl installed
+## Have helm installed
+
+# Add the KubeVela Helm Repository
+helm repo add kubevela https://kubevela.github.io/charts
+helm repo update
+
+# Install KubeVela
+helm install vela kubevela/vela-core --create-namespace --namespace vela-system
+
+# Verify the Installation
+kubectl get pods -n vela-system
+
+# (Optional) Install the Vela CLI - makes it easier to interact with KubeVela.
+curl -fsSl https://kubevela.io/script/install.sh | bash
+# After installation, add the CLI to your PATH as instructed
+
+# Deploying Your First Application Using OAM
+kubectl apply -f myapp.yaml
+
+# Check the Application Status
+kubectl get application
+
+# Expose the Application (Optional for Local Testing)
+kubectl port-forward deployment/webservice 8085:80
+
+# Open on another terminal 
+curl http://localhost:8085
+
+# To test using external browser
+kubectl port-forward deployment/webservice 8085:80 --address=0.0.0.0
+# http://<YOUR_VM_IP_ADDRESS>:8085
+
+# Manage application with UI Console
+curl -fsSl https://kubevela.io/script/install-velad.sh | bash
+
+velad install --bind-ip=$SERVER_PUBLIC_IP
+
+## export KUBECONFIG=$(velad kubeconfig --host)
+export KUBECONFIG=$HOME/.kube/config
+vela comp
+
+# If it denies access without sudo
+unset KUBECONFIG
+
+vela addon enable velaux
+# or to run it on a particular service type
+vela addon enable velaux serviceType=NodePort
+
+vela port-forward -n vela-system addon-velaux 8000:8000 --address=0.0.0.0
+
+# The default username is admin and the password is VelaUX12345.
+
+##
+kubectl get pods -n vela-system
+kubectl get svc -n vela-system
+##
+
+# To create a namespace within kubevela
+vela env init prod --namespace prod
+
+# To have your application on the dashboard of kubevela
+vela up -f myapp.yaml
+
+# View the process and status of the application deployment
+vela status my-first-app
+
+# We can check the application by
+vela port-forward my-first-app 8000:8000 --address=0.0.0.0
+
+# To clean up the app
+vela delete my-first-app

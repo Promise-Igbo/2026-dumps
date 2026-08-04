@@ -1,0 +1,42 @@
+## Microsoft Foundry Workflows Types:
+# Blank workflow — starts with an empty canvas so you can design any custom workflow from scratch.
+# Sequential workflow — runs steps one after another in a fixed order, passing the output of each step into the next.
+# Human-in-the-Loop workflow — combines AI steps with required human review or approval before the workflow continues.
+# Group chat workflow — allows multiple agents to collaborate in a shared conversation, each contributing based on their role.
+
+## Sequential workflow
+# Click on 'workflows' > Create > Sequential
+# let’s build a simple Marketing Content Workflow using three agents.
+
+# Agent 1: Marketing-Analyst
+Extracts key information from the product description, such as:
+Key features
+Target audience
+Unique selling points
+
+# Agent 2: Marketing-Copywriter
+Takes the analyst’s output and converts it into compelling marketing copy (for example, a short newsletter section or promotional paragraph).
+
+# Agent 3: Marketing-Editor
+Reviews the copy, fixes grammar, improves clarity, ensures consistent tone, and produces a polished final version.
+
+## Configure Each Agent in the Sequential Workflow
+# Configure Agent 1 — Marketing-Analyst
+
+# Configure Agent 2 — Marketing-Copywriter
+You are a marketing copywriter. Given a block of text describing features, audience, and USPs,
+compose a compelling marketing copy (like a newsletter section) that highlights these points.
+Output should be short (around 150 words), output just the copy as a single text block.
+
+#  Configure Agent 3 — Marketing-Editor
+You are an editor. Given the draft copy, correct grammar, improve clarity, ensure consistent tone,
+give format and make it polished. Output the final improved copy as a single text block.
+
+## What happens after configuring all three agents?
+# Agent 1 extracts insights
+# Agent 2 writes draft marketing copy
+# Agent 3 edits and polishes the copy
+
+## Save, Preview and Test Your Multi-Agent Workflow
+# Enter test data: Introducing the AquaPure Smart Bottle — a reusable, insulated water bottle with built-in UV-C purification technology. It automatically cleans itself and your drinking water in under 60 seconds. The bottle keeps drinks cold for 24 hours and hot for 12 hours. Designed for busy professionals, travellers, and fitness lovers, it’s lightweight, durable, and made from BPA-free materials.
+
