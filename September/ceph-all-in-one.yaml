@@ -1,0 +1,156 @@
+# rook-ceph-test.yaml
+#
+# Minimal Rook-Ceph test deployment for AKS.
+# NOT suitable for production:
+#   - 1 MON
+#   - 1 OSD
+#   - replicated pool size 1
+#   - no HA
+#
+# Prerequisite:
+#   kubectl get storageclass
+# Make sure "default" below is the actual Azure disk StorageClass.
+
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: rook-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    image: quay.io/ceph/ceph:v19.2.0
+
+  dataDirHostPath: /var/lib/rook
+
+  mon:
+    count: 1
+    allowMultiplePerNode: true
+
+  mgr:
+    count: 1
+
+  dashboard:
+    enabled: false
+
+  monitoring:
+    enabled: false
+
+  crashCollector:
+    disable: true
+
+  resources:
+    mon:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+    mgr:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+
+    storageClassDeviceSets:
+      - name: osd
+        count: 1
+        portable: true
+
+        volumeClaimTemplates:
+          - metadata:
+              name: data
+            spec:
+              storageClassName: default
+              volumeMode: Block
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+
+---
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: replicated-pool
+  namespace: rook-ceph
+spec:
+  failureDomain: osd
+
+  replicated:
+    size: 1
+    requireSafeReplicaSize: false
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: rook-ceph-block
+provisioner: rook-ceph.rbd.csi.ceph.com
+
+parameters:
+  clusterID: rook-ceph
+  pool: replicated-pool
+
+  imageFormat: "2"
+  imageFeatures: layering
+
+  csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+
+  csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+  csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: ceph-test-pvc
+#   namespace: default
+# spec:
+#   storageClassName: rook-ceph-block
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 1Gi
+
+# ---
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: ceph-test-app
+#   namespace: default
+# spec:
+#   containers:
+#     - name: test
+#       image: nginx:1.27
+#       command:
+#         - /bin/sh
+#         - -c
+#         - |
+#           echo "Ceph RBD volume mounted successfully"
+#           echo "hello from Rook Ceph" > /data/test.txt
+#           while true; do
+#             date
+#             cat /data/test.txt
+#             sleep 30
+#           done
+#       volumeMounts:
+#         - name: ceph-volume
+#           mountPath: /data
+
+#   volumes:
+#     - name: ceph-volume
+#       persistentVolumeClaim:
+#         claimName: ceph-test-pvc

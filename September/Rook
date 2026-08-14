@@ -1,0 +1,177 @@
+## Rook runs as a native Kubernetes storage service.
+## Offering Provisioning and management, Automation and self-healing
+
+## Features
+# 1. Located inside your cluster (hyperconverged).
+# 2. Uses the unused hard drives directly inside your Kubernetes nodes into a single pool of cloud-like storage.
+# 3. Works exactly the same on-premises, in bare-metal setups, or across different clouds.
+# 4. No extra cloud disk fees; uses your existing server hardware.
+
+## Why You Need Rook to Back Your PVCs
+# Rook automates natively turn empty hard drives on physical servers into a shared, reliable storage pool.
+# Rook replicates your data across multiple nodes so that if a server dies, your PVC automatically reconnects to the data on another server.
+# Rook gives you identical PVC behavior everywhere (across AWS, Azure, and on-premises) without code changes.
+
+# Rook scans your nodes, finds these empty drives, and formats them automatically.
+# Rook combines all these separate drives from different servers or nodes into one massive, shared storage system.
+# When an app requests storage via a PVC, Rook carves out a piece of this collective pool and hands it to your app.
+
+## If Worker Node 1 completely crashes and catches fire, your data is not lost. Rook has already sliced up your files and copied them onto the raw disks inside Worker Node 2 and Worker Node 3. Your application simply restarts on a healthy node and keeps running.
+
+## Step-by-step method
+# Cluster size used is Standard_D4ds_v5
+# Minimum of 3 nodes
+
+# 1. Deploy aks cluster (use either a or b for full deployment)
+az aks install-cli
+
+$myResourceGroup='Ghas'
+$myAKSCluster='rookakstest'
+$location="eastus"
+$ACRNAME=''
+
+
+# a. AKS Automatic (recommended)
+az aks create --resource-group $myResourceGroup --name $myAKSCluster --sku automatic --attach-acr $ACRNAME
+
+AKS_ID=$(az aks show --resource-group $myResourceGroup --name $myAKSCluster --query id -o tsv)
+ENTRA_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
+
+# Grant yourself admin permissions to the cluster using the Azure Kubernetes Service RBAC Cluster Admin role.
+az role assignment create --role "Azure Kubernetes Service RBAC Cluster Admin" --assignee $ENTRA_OBJECT_ID --scope $AKS_ID
+
+# b. AKS Standard
+az aks create --resource-group $myResourceGroup --name $myAKSCluster --node-count 3 --node-vm-size standard_l8s_v3 --generate-ssh-keys --attach-acr $ACRNAME
+
+# Connect to cluster using kubectl
+az aks get-credentials --resource-group $myResourceGroup --name $myAKSCluster
+
+kubectl get nodes
+
+# Use can go ahead to install Azure container storage(ACS), but here i wil be using dynamnic storage
+# For ACS: az aks update -n myAKSCluster -g myResourceGroup --enable-azure-container-storage ephemeralDisk
+
+az aks get-credentials --resource-group myResourceGroup --name myAKSCluster
+kubectl get nodes
+
+# Verify the storage class
+kubectl get storageclass
+
+# Install Rook-Ceph Operator
+helm repo add rook-release https://charts.rook.io/release
+helm repo update
+
+helm search repo rook-release/rook-ceph
+
+helm install rook-ceph rook-release/rook-ceph `
+  --namespace rook-ceph `
+  --create-namespace
+
+kubectl -n rook-ceph get pods
+kubectl -n rook-ceph get deployment
+kubectl -n rook-ceph logs deployment/rook-ceph-operator
+
+helm repo add ceph-csi-operator https://ceph.github.io/ceph-csi-operator
+helm repo update
+
+# Use this to specify the version for <ROOK_VERSION>
+helm list -n rook-ceph
+
+helm install ceph-csi-drivers `
+  --namespace rook-ceph `
+  ceph-csi-operator/ceph-csi-drivers `
+  -f https://raw.githubusercontent.com/rook/rook/<ROOK_VERSION>/deploy/charts/ceph-csi-drivers/values.yaml
+
+# Create the CephCluster Manifest.
+kubectl apply -f ceph-all-in-one.yaml
+
+# verify that your pods are healthy and running before creating the storage cluster
+kubectl -n rook-ceph get pod
+
+# Deploy a Test App with a PVC
+kubectl apply -f ceph-app-test.yaml
+
+# Verify the Test Setup
+kubectl get pvc ceph-test-pvc
+
+kubectl get pod ceph-test-app
+
+kubectl -n rook-ceph get pods -w
+kubectl -n rook-ceph get cephcluster -w
+kubectl -n rook-ceph get cephblockpool -w
+kubectl get pvc ceph-test-pvc -w
+
+kubectl get csidriver
+
+# if its not bound
+kubectl -n rook-ceph rollout restart deployment ceph-csi-controller-manager
+kubectl get pvc ceph-test-pvc
+
+# Write Data & Test Persistence
+# Exec into the container, write a test file onto your Ceph-backed directory, and read it back
+kubectl exec ceph-test-app -- sh -c "echo 'Hello from Ceph Storage!' > /usr/share/nginx/html/index.html"
+
+kubectl exec ceph-test-app -- cat /usr/share/nginx/html/index.html
+
+# test with another pod
+kubectl apply -f ceph-test-sc.yaml
+kubectl exec ceph-test-app -- cat /data/test.txt
+kubectl exec ceph-test-app -- df -h /data
+
+kubectl get pvc ceph-test-pvc
+kubectl get pv
+
+
+# Delete the pod
+# This simulates a node crash or an application failure
+kubectl delete pod ceph-test-app
+
+# Create a recovery pod
+kubectl apply -f ceph-recovery-app.yaml
+
+# Verify data survival
+# Wait for the new pod to reach a Running state, then read the file from inside the new container
+kubectl exec ceph-recovery-app -- cat /usr/share/nginx/html/index.html
+
+# To test volume scaling/expansion to see if your Rook disks can be resized on the fly?
+# Verify Your Current Volume Size
+kubectl get pvc ceph-test-pvc
+
+# Check the disk space inside the container
+kubectl exec ceph-recovery-app -- df -h /usr/share/nginx/html
+
+# Check the container's filesystem live
+kubectl exec ceph-recovery-app -- df -h /usr/share/nginx/html
+# The size will automatically reflect 20G without any container restart!
+
+## Note: 
+# 1. You can only expand volumes. Neither Azure nor Ceph supports shrinking a filesystem once it has been grown. 
+# 2. Ceph will lock the filesystem into Read-Only mode if the storage nodes cross near-full thresholds to prevent database corruption.
+# 3. When ceph reaches its full capacity, you can tell Rook to request larger disks from Azure i.e in your yaml file, increase your storage request e.g from 100Gi to 200Gi. etc.
+
+# Configuring Prometheus Alerts for Ceph Capacity
+kubectl apply -f ceph-alerts.yaml
+
+# Handle AKS Security Context
+kubectl create clusterrolebinding rook-ceph-privileged `
+  --clusterrole=rook-ceph-operator `
+  --serviceaccount=rook-ceph:rook-ceph-operator
+# But For AKS with Azure Policy addon, you may need to disable it if policies block privileged pods
+az aks disable-addons \
+  --addons azure-policy \
+  --resource-group my-rg \
+  --name my-aks
+
+# If needed, you can also apply the raw-device manifest instead:
+# kubectl apply -f cluster-aks.yaml
+
+# Deploy Toolbox and Verify Health
+kubectl apply -f https://raw.githubusercontent.com/rook/rook/release-1.14/deploy/examples/toolbox.yaml
+
+# Verify health
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph status
+kubectl -n rook-ceph get pods -l app=rook-ceph-tools
+kubectl -n rook-ceph exec -it deploy/rook-ceph-tools -- ceph osd df
+
+## To delete all resources
+az group delete --name <resource-group-name>

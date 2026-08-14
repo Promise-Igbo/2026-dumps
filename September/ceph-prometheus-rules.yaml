@@ -1,0 +1,20 @@
+groups:
+- name: ceph-capacity.rules
+  rules:
+  - alert: CephClusterNearFull
+    expr: (ceph_cluster_total_used_bytes / ceph_cluster_total_bytes) * 100 > 75
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Ceph cluster storage is nearing capacity"
+      description: "Ceph cluster is {{ printf \"%.2f\" $value }}% full. Clean up data or scale up storage immediately."
+
+  - alert: CephClusterCriticalFull
+    expr: (ceph_cluster_total_used_bytes / ceph_cluster_total_bytes) * 100 > 85
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Ceph cluster storage critically full - Action Required"
+      description: "Ceph cluster is {{ printf \"%.2f\" $value }}% full. Writes will be blocked soon!"
