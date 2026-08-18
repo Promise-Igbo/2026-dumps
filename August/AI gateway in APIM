@@ -1,0 +1,180 @@
+## AI Gateway in Azure API Management
+
+# AI Gateway tier from Azure API Management is a dedicated tier for AI workloads. It supports managing traffic to models — from Microsoft Foundry, Azure OpenAI, AWS Bedrock, Google Vertex, OpenAI, Anthropic, or other providers — and tools created from existing MCP servers, OpenAPI definitions, or connectors. AI Gateway tier provisions quickly, usually within a minute.
+
+# the gateway simplifies the integration of AI services into applications. It ensures secure, efficient, and optimized communication between Intelligent Apps and AI Services while providing essential features like security, observability, and load balancing.
+
+# On Azure Portal > Azure Open AI and create
+# Navigate to your deployed Azure Open AI instance and select "Go to Azure AI Foundry Portal".
+# On the new interface, Select "Deployments" in the left menu and select "+ Deploy model" and select "base model"
+# Type gpt-4o, select the model from the list and click "Confirm".
+
+# Create an Azure API Management instance
+
+# Create Application Insights instance
+
+# On Azure API Management instance and select "API" 
+# Select Microsoft foundry, create
+
+# Check 'manage token limit"
+# Token per limit (TPM): 1000
+# Check "Estimate prompt tokens"
+# Check "Add cosumed token headers"
+# Check "Add remaining token header"
+
+# To test policy, change tokens-per-minute="1000" to tokens-per-minute="50"
+# Click on 'test' tab, 
+# choose 'Post Creates a completion for the chat message'
+# On the request bode enter:
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "you are a friendly assistant"
+    },
+    {
+      "role": "user",
+      "content": "how is the weather in London?"
+    }
+  ]
+}
+
+# For the deployment name: gpt-4o
+# Send
+
+# HTTP response should be: 429 error to happen once we exhaust our allowed "tokens-per-minute value"
+
+## Monitor your token consumption
+# APIs > Select Microsoft foundry >
+# Token per limit (TPM): 1000
+# Check "Estimate prompt tokens"
+# Check "Track token usage"
+# Put the application insights created earlier
+# Add dimensions> User ID, Product ID, Client Ip address, Location, App ID, Subscription ID
+# Create
+
+# To Enable monitoring on the API
+# Click on the created API > Settings tab > Under Application insights
+# Enable, add the app insights, enable all check box, Save 
+# Click on the created API > Design tab >
+# choose 'Post Creates a completion for the chat message'
+# deployment-id:	gpt-4o
+# request body: 
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "you are a friendly assistant"
+    },
+    {
+      "role": "user",
+      "content": "how is the weather in London?"
+    }
+  ]
+}
+
+# Select Send, you should see a request response coming back.
+
+# Go to your App insights instance
+# In investigate, you will see the instance
+# Select Monitoring / Metrics
+# Scope: app insights name
+# Metric namespace: api management
+# Metric: Completion token
+# Aggregation: Avg
+
+# Now you can see your prompts token, the number of tokens used to present a response and the total number of tokens
+
+
+## Backend Pool Load Balancing in Azure APIM
+# still use same API or create new API
+# APIs > Backend > Create new backends
+# For each of the backends, ie i am using 2 bckends here as an instance:
+
+# Name: openai-eastus (Backend1); openai-westus (Backend2)
+# Select Custom URL as the Backend hosting type
+# Paste in the Endpoint URL of the gpt-4o deployment e.g https://testai-wst-test.openai.azure.com
+# Click on + Create new for the Add a circuit breaker rule option
+# Circuit breaker rule: openAIBreakerRule
+# Leave Failure count as 1
+# Set Failure interval to 5 minutes
+# Specify Custom range as 429
+# Set Trip duration to 1 minute
+# Check True (Accept) for the Check 'Retry-After' header in HTTP reponse
+# Click on Create to add the Azure OpenAI service as a backend
+
+## PLEASE NOTE
+# each backend can use same circuit breaker
+# each backend should has different endpoints i.e each open AI resources should be created in different regions
+# when testing the API, check the frontend, if the frontend is /openai/deployments/{deployment-id}/chat/completions?api-version={api-version}
+# make sure when adding your endpoints on the runtime url of each backend do not add /openai to avoid duplicate
+# E.g Select the `POST Creates a completion for the chat` operation, click frontend and edit
+# /openai/deployments/{deployment-id}/chat/completions?api-version={api-version}: https://testai-wst-test.openai.azure.com
+# /deployments/{deployment-id}/chat/completions?api-version={api-version}: https://testai-wst-test.openai.azure.com/openai
+# openai/deployments/{deployment-id}/chat/completions?api-version={api-version}: https://testai-wst-test.openai.azure.com/
+
+# APIs > Backend > Click on Load balancer and then + Create new pool
+# Enter a Name (e.g., openai-backend-pool)
+# Check all two backends you created earlier for the Add backends to pool option
+# Test by leaving the Backend weight and priority as Send requests evenly and you can later test using the priority and weight
+
+# Select Design, then Inbound processing and click on the "Policy Code Editor" icon to open the policy editor. Replace the existing policy with the following code:
+<policies>
+    <inbound>
+        <base />
+        <authentication-managed-identity resource="https://cognitiveservices.azure.com" output-token-variable-name="managed-id-access-token" ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["managed-id-access-token"])</value>
+        </set-header>
+        <set-backend-service backend-id="openai-backend-pool" />
+    </inbound>
+    <backend>
+        <!--Set count to one less than the number of backends in the pool to try all backends until the backend pool is temporarily unavailable.-->
+        <retry count="2" interval="0" first-fast-retry="true" condition="@(context.Response.StatusCode == 429 || (context.Response.StatusCode == 503 && !context.Response.StatusReason.Contains("Backend pool") && !context.Response.StatusReason.Contains("is temporarily unavailable")))">
+            <forward-request buffer-request-body="true" />
+        </retry>
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+        <choose>
+            <!--Return a generic error that does not reveal backend pool details.-->
+            <when condition="@(context.Response.StatusCode == 503)">
+                <return-response>
+                    <set-status code="503" reason="Service Unavailable" />
+                </return-response>
+            </when>
+        </choose>
+    </on-error>
+</policies>
+
+
+# This policy does the following:
+# Uses a managed identity to authenticate with the Azure OpenAI service
+# Sets the backend service to the load balanced pool you created earlier
+# Implements a retry policy that retries requests to the backend if it receives a 429 (Too Many Requests) status code or a 503 (Service Unavailable) status code
+
+# Click on Save to save the policy
+
+# **deployment-id**: gpt-4o
+# api-version=2025-01-01-preview
+# Note: this is my api version seen from foundry deployment endpoint
+# **Request body**:
+{
+    "messages": [
+        {"role": "system", "content": "You are a sarcastic, unhelpful assistant."},
+        {"role": "user", "content": "What is the weather like today?"}
+    ]
+}
+
+# Click on **Send** to send the request
+# observe the "x-ms-region" header in the response.
+
+# You'll notice that the requests are being distributed depending on how you set it.
+
+
+## SOME OTHER THINGS TO NOTE
+# make sure system identity is turned on, on your APIM instance
+# on your Azure OpenAI resource grant RBAC (IAM) role 'cognitive service user' to APIM. 
