@@ -1,0 +1,93 @@
+## WSL container
+
+# building and running Linux containers on Windows using wslc.exe, the container CLI that ships built in with WSL.
+
+# wslc.exe provides a familiar CLI for building, shipping, and running containerized apps.
+
+# wslc.exe is included with WSL, so there's no separate engine to install. It requires WSL version 2.9.3 or higher.
+
+# Prerequiste: Make sure you have installed a linux distro
+wsl --list --online
+wsl --install -d Ubuntu
+
+# Install WSL 
+wsl --update --pre-release
+wslc version
+
+# Test that everything works correctly by running a simple built-in image.
+wslc run --rm hello-world
+# You should see a "Hello" message confirming that your installation appears to be working correctly.
+
+##  Run your first containers
+./run-container.ps1
+
+# Because the nginx container was started with --rm, it is removed automatically once it stops.
+
+## Use vscode to develop apps with wslc.exe
+# Install wsl extension on vscode
+
+# Let's build a container image for an existing app project.
+# To download the HelloWorld-Django web app from GitHub, open a WSL terminal (Ubuntu for example)
+wsl -d Ubuntu
+git clone https://github.com/Promise-Igbo/helloworld-django.git
+
+# Always store your code in the same file system that you're using tools in. This will result in faster file access performance.
+# store your project files on the WSL file system \\wsl$.
+
+# From your WSL terminal, change directories to the source code folder for this project:
+cd helloworld-django
+
+# Open the project in VS Code running on the local WSL extension server by entering:
+code .
+
+# Confirm that you are connected to your WSL Linux distro by checking the green remote indicator in the bottom-left corner of your VS Code instance.
+
+# Add a Containerfile to the root of your project that describes how to build the image.
+wslc build -t helloworld-django .
+
+# Confirm that the image was created by listing your images
+wslc image list
+
+# Run your newly built image as a container, publishing the app's port so you can reach it from Windows:
+wslc run -d --rm -p 8000:8000 --name django helloworld-django
+
+# list the running containers and check its logs
+wslc container list
+wslc container logs django
+
+# Open a browser on Windows and navigate to http://localhost:8000/ t
+
+## Things to note
+# Inspect a container or image
+wslc container inspect <container-id>
+wslc container logs <container-id>
+wslc image inspect <image>
+
+# Reclaim disk space
+# Remove all stopped containers
+wslc container prune
+
+# Remove unused images
+wslc image pruneo see your app running inside its container. 
+
+# Or, confirm that the app is running on Linux by executing a command inside the container
+wslc exec django uname
+
+# The uname result of "Linux" confirms that the container is running on the WSL 2 Linux kernel
+
+# stop the container
+wslc container stop django
+
+
+## Things to note
+# Inspect a container or image
+wslc container inspect <container-id>
+wslc container logs <container-id>
+wslc image inspect <image>
+
+# Reclaim disk space
+# Remove all stopped containers
+wslc container prune
+
+# Remove unused images
+wslc image prune
