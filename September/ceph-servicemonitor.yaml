@@ -1,0 +1,24 @@
+# ServiceMonitor example for scraping Rook Ceph manager metrics with Prometheus Operator
+# Adjust `selector.matchLabels` to match the actual Ceph manager service labels in your cluster.
+# Apply with: kubectl apply -f ceph-servicemonitor.yaml -n rook-ceph
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rook-ceph-servicemonitor
+  namespace: rook-ceph
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: rook-ceph-mgr
+  namespaceSelector:
+    matchNames:
+    - rook-ceph
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: true

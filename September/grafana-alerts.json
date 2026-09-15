@@ -1,0 +1,44 @@
+{
+  "title": "Ceph Capacity Alerts",
+  "uid": "ceph-capacity",
+  "rules": [
+    {
+      "uid": "ceph-nearfull",
+      "title": "CephClusterNearFull",
+      "condition": "A > 75",
+      "datasource": { "type": "prometheus", "uid": "__your_prometheus_datasource_uid__" },
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "(ceph_cluster_total_used_bytes / ceph_cluster_total_bytes) * 100",
+          "format": "time_series"
+        }
+      ],
+      "for": "5m",
+      "labels": { "severity": "warning" },
+      "annotations": {
+        "summary": "Ceph cluster storage is nearing capacity",
+        "description": "Ceph cluster is ${A} % full. Clean up data or scale up storage immediately."
+      }
+    },
+    {
+      "uid": "ceph-criticalfull",
+      "title": "CephClusterCriticalFull",
+      "condition": "A > 85",
+      "datasource": { "type": "prometheus", "uid": "__your_prometheus_datasource_uid__" },
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "(ceph_cluster_total_used_bytes / ceph_cluster_total_bytes) * 100",
+          "format": "time_series"
+        }
+      ],
+      "for": "2m",
+      "labels": { "severity": "critical" },
+      "annotations": {
+        "summary": "Ceph cluster storage critically full - Action Required",
+        "description": "Ceph cluster is ${A} % full. Writes will be blocked soon!"
+      }
+    }
+  ]
+}

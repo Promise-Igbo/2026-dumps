@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ceph-recovery-app
+spec:
+  containers:
+  - name: web-server
+    image: nginx:alpine
+    volumeMounts:
+    - mountPath: /usr/share/nginx/html
+      name: ceph-volume
+  volumes:
+  - name: ceph-volume
+    persistentVolumeClaim:
+      claimName: ceph-test-pvc
