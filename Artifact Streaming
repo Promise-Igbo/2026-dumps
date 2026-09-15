@@ -1,0 +1,19 @@
+## Artifact Streaming allows you to stream container images from ACR to AKS by reducing the time it takes to deploy workloads.
+## Instaed of ACR → Download entire image → AKS machine → Start container
+## Imagine you have a 2 GB box, but the application only immediately needs 100 MB from that box. With artifact streaming, AKS can start getting the parts of the container image it needs without waiting for the entire image to be downloaded.
+## ACR → Stream required image content → AKS → Start application faster
+## IDEA: get the application running sooner instead of waiting for the entire container image to be pulled.
+
+## AKS only pulls the necessary layers for initial pod startup, reducing the time it takes to deploy your workloads.
+
+## Prerequisites
+# Only images with Linux AMD64 architecture
+# Ubuntu based node pools in AKS must use Ubuntu version 20.04 or higher.
+# Only Premium SKU ACR registries
+# CMK (Customer-Managed Keys) registries aren't supported.
+# Image pulls from ACR using non-Entra scope-mapped token credentials or ACR admin user credentials
+# Artifact Streaming only supports image pulls by tag, not by digest. Because Artifact Streaming needs to Tag → Find the image → Resolve it to streaming variant → Stream image to AKS. But digest doesn't want to resolve rather it wants the exact image.
+
+## A tag is like asking Amazon for "the latest iPhone model" — the system can decide which prepared delivery version to give you. A digest is like giving Amazon the exact serial/fingerprint of one specific item — you're asking for that exact artifact, so the streaming resolution doesn't happen.
+
+## 
